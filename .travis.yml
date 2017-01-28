@@ -20,7 +20,7 @@ before_install:
 
 install:
 - sudo apt-get install -qq libjack-dev
-- sudo apt-get install -qq libboost-all-dev
+- sudo apt-get install -qq libasio-dev
 
 before_script:
 - git submodule update --init
