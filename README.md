@@ -24,7 +24,7 @@
 
    To quit, enter "quit" on the "jack_link>" prompt:
 
-     jack_quit> quit
+     jack_link> quit
 
    Enjoy.
 
