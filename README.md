@@ -14,7 +14,7 @@
 
      git clone https://github.com/rncbc/jack_link
      cd jack_link
-     git submodule update --init --update
+     git submodule update --init
 
      make
 

@@ -22,7 +22,7 @@ install:
 - sudo apt-get install -qq libjack-dev
 
 before_script:
-- git submodule --init --update
+- git submodule update --init
 
 script:
 - make
