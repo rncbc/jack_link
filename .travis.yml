@@ -20,9 +20,10 @@ before_install:
 
 install:
 - sudo apt-get install -qq libjack-dev
+- sudo apt-get install -qq libboost-all-dev
 
 before_script:
-- git submodule update --init --recursive
+- git submodule update --init
 
 script:
 - make
