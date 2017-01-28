@@ -1,5 +1,23 @@
 // jack_link.cpp
 //
+/****************************************************************************
+   Copyright (C) 2017, rncbc aka Rui Nuno Capela. All rights reserved.
+
+   This program is free software; you can redistribute it and/or
+   modify it under the terms of the GNU General Public License
+   as published by the Free Software Foundation; either version 2
+   of the License, or (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License along
+   with this program; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+*****************************************************************************/
 
 #include "jack_link.hpp"
 
@@ -20,12 +38,25 @@ jack_link::~jack_link (void)
 	terminate();
 }
 
+int jack_link::process_callback ( jack_nframes_t nframes, void *pvUserData )
+{
+	jack_link *pJackLink = static_cast<jack_link *> (pvUserData);
+	return pJackLink->process_callback(nframes);
+}
+
+
+int jack_link::process_callback ( jack_nframes_t nframes )
+{
+	return 0;
+}
+
+
 void jack_link::timebase_callback (
 	jack_transport_state_t state, jack_nframes_t nframes,
 	jack_position_t *position, int new_pos, void *pvUserData )
 {
 	jack_link *pJackLink = static_cast<jack_link *> (pvUserData);
-	return pJackLink->timebase_callback(state, nframes, position, new_pos);
+	pJackLink->timebase_callback(state, nframes, position, new_pos);
 }
 
 
@@ -37,7 +68,7 @@ void jack_link::timebase_callback (
 		llround(1.0e6 * position->frame / position->frame_rate));
 
 	const auto timeline = m_link.captureAppTimeline();
-	const auto quantum = 4.0;//engine.quantum();
+	const auto quantum = 4.0; //engine.quantum();
 
 	const double beats_per_minute = timeline.tempo();
 	const double beats_per_bar = std::max(quantum, 1.);
@@ -92,15 +123,21 @@ void jack_link::initialize (void)
 		std::terminate();
 	};
 
+	::jack_set_process_callback(
+		m_pJackClient, process_callback, this);
 	::jack_set_timebase_callback(
 		m_pJackClient, 0, jack_link::timebase_callback, this);
 
 	::jack_activate(m_pJackClient);
+
+	m_link.enable(true);
 }
 
 
 void jack_link::terminate (void)
 {
+	m_link.enable(false);
+
 	if (m_pJackClient) {
 		::jack_deactivate(m_pJackClient);
 		::jack_client_close(m_pJackClient);
