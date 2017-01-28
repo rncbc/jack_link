@@ -26,4 +26,4 @@ before_script:
 - git submodule update --init
 
 script:
-- make CCFLAGS=-std=c++11
+- CCFLAGS=-std=c++11 make
