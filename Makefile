@@ -1,6 +1,6 @@
 TARGET   = jack_link
 
-CCFLAGS += -g -O2
+CCFLAGS += -g -O2 -std=c++11
 CCFLAGS += -Wno-multichar
 CCFLAGS += -DLINK_PLATFORM_LINUX=1
 CCFLAGS += -Ilink/include
