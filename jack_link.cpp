@@ -26,8 +26,11 @@
 #include <cctype>
 
 
-jack_link::jack_link (void) : m_link(120.0), m_pJackClient(NULL),
-	m_sampleRate(44100.0), m_numPeers(0), m_tempo(120.0), m_requestedTempo(0.0), m_quantum(4.0)
+jack_link::jack_link (void) :
+	m_link(120.0), m_pJackClient(NULL),
+	m_sampleRate(44100.0), m_numPeers(0),
+	m_tempo(120.0), m_requestedTempo(0.0),
+	m_quantum(4.0), m_requestedQuantum(0.0)
 {
 	initialize();
 }
@@ -48,16 +51,42 @@ int jack_link::process_callback ( jack_nframes_t nframes, void *pvUserData )
 
 int jack_link::process_callback ( jack_nframes_t nframes )
 {
-	if (m_requestedTempo > 0.0 && m_mutex.try_lock()) {
-		const auto frameTime
-			= ::jack_last_frame_time(m_pJackClient);
-		const auto hostTime
-			= std::chrono::microseconds(llround(1.0e6 * frameTime / m_sampleRate));
-		auto timeline = m_link.captureAudioTimeline();
-		timeline.setTempo(m_requestedTempo, hostTime);
-		m_link.commitAudioTimeline(timeline);
-		m_tempo = m_requestedTempo;
-		m_requestedTempo = 0.0;
+	if (m_mutex.try_lock()) {
+
+		int request = 0;
+
+		if (jack_transport_query(m_pJackClient, &m_jack_pos) == 0) {
+			if (m_jack_pos.valid & JackPositionBBT) {
+				if (std::abs(m_tempo - m_jack_pos.beats_per_minute) > 0.01) {
+					m_requestedTempo = m_jack_pos.beats_per_minute;
+					++request;
+				}
+				if (std::abs(m_quantum - m_jack_pos.beats_per_bar)  > 0.01) {
+					m_requestedQuantum = m_jack_pos.beats_per_bar;
+					++request;
+				}
+			}
+		}
+
+		if (request > 0) {
+			auto timeline = m_link.captureAudioTimeline();
+			const auto frameTime
+				= ::jack_last_frame_time(m_pJackClient);
+			const auto hostTime = std::chrono::microseconds(
+				llround(1.0e6 * frameTime / m_sampleRate));
+			if (m_requestedTempo > 0.0) {
+				timeline.setTempo(m_requestedTempo, hostTime);
+				m_tempo = m_requestedTempo;
+				m_requestedTempo = 0.0;
+			}
+			if (m_requestedQuantum > 0.0) {
+				timeline.requestBeatAtTime(0, hostTime, m_requestedQuantum);
+				m_quantum = m_requestedQuantum;
+				m_requestedQuantum = 0.0;
+			}
+			m_link.commitAudioTimeline(timeline);
+		}
+
 		m_mutex.unlock();
 	}
 
@@ -78,6 +107,18 @@ void jack_link::timebase_callback (
 	jack_transport_state_t state, jack_nframes_t nframes,
 	jack_position_t *position, int new_pos )
 {
+	if (m_mutex.try_lock()) {
+		if (m_requestedTempo > 0.0) {
+			m_tempo = m_requestedTempo;
+			m_requestedTempo = 0.0;
+		}
+		if (m_requestedQuantum > 0.0) {
+			m_quantum = m_requestedQuantum;
+			m_requestedQuantum = 0.0;
+		}
+		m_mutex.unlock();
+	}
+
 	const auto time = std::chrono::microseconds(
 		llround(1.0e6 * position->frame / position->frame_rate));
 
@@ -88,8 +129,9 @@ void jack_link::timebase_callback (
 	const double bar = std::floor(beats / beats_per_bar);
 	const double beat = beats - bar * beats_per_bar;
 
-	static const double ticks_per_beat = 960.0;
-	static const float beat_type = 4.0f;
+	const bool valid = (m_jack_pos.valid & JackPositionBBT);
+	const double ticks_per_beat = (valid ? m_jack_pos.ticks_per_beat : 960.0);
+	const float beat_type = (valid ? m_jack_pos.beat_type : 4.0f);
 
 	position->valid = JackPositionBBT;
 	position->bar = int32_t(bar) + 1;
@@ -105,21 +147,23 @@ void jack_link::timebase_callback (
 void jack_link::tempo_callback ( const double bpm )
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-
-	m_tempo = bpm;
+	std::cerr << "jack_link::tempo_callback(" << bpm << ")" << std::endl;
+	m_requestedTempo = bpm;
 }
 
 
 void jack_link::peers_callback ( const std::size_t n )
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-
+	std::cerr << "jack_link::peers_callback(" << n << ")" << std::endl;
 	m_numPeers = n;
 }
 
 
 void jack_link::initialize (void)
 {
+	::memset(&m_jack_pos, 0, sizeof(jack_position_t));
+
 	m_link.setTempoCallback([this](const double bpm) { tempo_callback(bpm); });
 	m_link.setNumPeersCallback([this](const std::size_t n) { peers_callback(n); });
 

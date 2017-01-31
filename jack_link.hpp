@@ -70,10 +70,11 @@ private:
 
 	ableton::Link m_link;
 	jack_client_t *m_pJackClient;
+	jack_position_t m_jack_pos;
 	double m_sampleRate;
 	std::size_t m_numPeers;
 	double m_tempo, m_requestedTempo;
-	double m_quantum;
+	double m_quantum, m_requestedQuantum;
 	std::mutex m_mutex;
 };
 
