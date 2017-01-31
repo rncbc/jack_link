@@ -21,13 +21,13 @@
 
 #include "jack_link.hpp"
 
-#include <chrono>
 #include <iostream>
 #include <string>
 #include <cctype>
 
 
-jack_link::jack_link (void) : m_link(120.0), m_pJackClient(NULL)
+jack_link::jack_link (void) : m_link(120.0), m_pJackClient(NULL),
+	m_sampleRate(44100.0), m_numPeers(0), m_tempo(120.0), m_requestedTempo(0.0), m_quantum(4.0)
 {
 	initialize();
 }
@@ -38,6 +38,7 @@ jack_link::~jack_link (void)
 	terminate();
 }
 
+
 int jack_link::process_callback ( jack_nframes_t nframes, void *pvUserData )
 {
 	jack_link *pJackLink = static_cast<jack_link *> (pvUserData);
@@ -47,6 +48,19 @@ int jack_link::process_callback ( jack_nframes_t nframes, void *pvUserData )
 
 int jack_link::process_callback ( jack_nframes_t nframes )
 {
+	if (m_requestedTempo > 0.0 && m_mutex.try_lock()) {
+		const auto frameTime
+			= ::jack_last_frame_time(m_pJackClient);
+		const auto hostTime
+			= std::chrono::microseconds(llround(1.0e6 * frameTime / m_sampleRate));
+		auto timeline = m_link.captureAudioTimeline();
+		timeline.setTempo(m_requestedTempo, hostTime);
+		m_link.commitAudioTimeline(timeline);
+		m_tempo = m_requestedTempo;
+		m_requestedTempo = 0.0;
+		m_mutex.unlock();
+	}
+
 	return 0;
 }
 
@@ -67,13 +81,10 @@ void jack_link::timebase_callback (
 	const auto time = std::chrono::microseconds(
 		llround(1.0e6 * position->frame / position->frame_rate));
 
-	const auto timeline = m_link.captureAppTimeline();
-	const auto quantum = 4.0; //engine.quantum();
+	const double beats_per_minute = m_tempo;
+	const double beats_per_bar = std::max(m_quantum, 1.);
 
-	const double beats_per_minute = timeline.tempo();
-	const double beats_per_bar = std::max(quantum, 1.);
-
-	const double beats = beats_per_minute * time.count() / 60.e6;
+	const double beats = beats_per_minute * time.count() / 60.0e6;
 	const double bar = std::floor(beats / beats_per_bar);
 	const double beat = beats - bar * beats_per_bar;
 
@@ -91,8 +102,27 @@ void jack_link::timebase_callback (
 }
 
 
+void jack_link::tempo_callback ( const double bpm )
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+
+	m_tempo = bpm;
+}
+
+
+void jack_link::peers_callback ( const std::size_t n )
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+
+	m_numPeers = n;
+}
+
+
 void jack_link::initialize (void)
 {
+	m_link.setTempoCallback([this](const double bpm) { tempo_callback(bpm); });
+	m_link.setNumPeersCallback([this](const std::size_t n) { peers_callback(n); });
+
 	jack_status_t status = JackFailure;
 	m_pJackClient = ::jack_client_open("jack_link", JackNullOption, &status);
 	if (m_pJackClient == NULL) {
@@ -122,6 +152,8 @@ void jack_link::initialize (void)
 		std::cerr << std::endl;
 		std::terminate();
 	};
+
+	m_sampleRate = double(::jack_get_sample_rate(m_pJackClient));
 
 	::jack_set_process_callback(
 		m_pJackClient, process_callback, this);

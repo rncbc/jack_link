@@ -23,8 +23,13 @@
 #define __jack_link_hpp
 
 #define _USE_MATH_DEFINES
+
 #include <ableton/Link.hpp>
+
 #include <jack/jack.h>
+
+#include <chrono>
+#include <mutex>
 
 
 class jack_link
@@ -55,14 +60,21 @@ protected:
 		jack_position_t *position,
 		int new_pos);
 
+	void peers_callback(const std::size_t n);
+	void tempo_callback(const double bpm);
+
 	void initialize();
 	void terminate();
 
 private:
 
 	ableton::Link m_link;
-
 	jack_client_t *m_pJackClient;
+	double m_sampleRate;
+	std::size_t m_numPeers;
+	double m_tempo, m_requestedTempo;
+	double m_quantum;
+	std::mutex m_mutex;
 };
 
 
