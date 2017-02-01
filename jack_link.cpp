@@ -21,6 +21,8 @@
 
 #include "jack_link.hpp"
 
+#include <thread>
+
 #include <iostream>
 #include <string>
 #include <cctype>
@@ -229,9 +231,60 @@ void jack_link::timebase_reset (void)
 }
 
 
+class jack_link_worker
+{
+public:
+
+	jack_link_worker(jack_link& app)
+		: m_jack_link(app), m_running(false),
+		m_thread([this]{ thread_run(); }) { m_thread.detach(); }
+
+	void running(bool running)
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		m_running = running;
+		m_cond.notify_all();
+	}
+
+	bool running() const
+	{
+		return m_running;
+	}
+
+protected:
+
+	void thread_run ()
+	{
+		std::cerr << std::endl;
+		std::cerr << "jack_link_worker: started ..." << std::endl;
+
+		m_running = true;
+
+		while (m_running) {
+			std::unique_lock<std::mutex> lock(m_mutex);
+			m_cond.wait(lock);//.wait_for(lock, std::chrono::milliseconds(200));
+		//	std::cerr << "jack_link_worker: running ..." << std::endl;
+		}
+
+		std::cerr << std::endl;
+		std::cerr << "jack_link_worker: terminated." << std::endl;
+	}
+
+private:
+
+	bool m_running;
+	std::thread m_thread;
+	std::mutex m_mutex;
+	std::condition_variable m_cond;
+
+	jack_link& m_jack_link;
+};
+
+
 int main ( int, char ** )
 {
 	jack_link app;
+	jack_link_worker worker(app);
 
 	std::string line;
 	while (line.compare("quit")) {
@@ -241,6 +294,8 @@ int main ( int, char ** )
 			line.begin(), line.end(),
 			line.begin(), ::tolower);
 	}
+
+	worker.running(false);
 
 	return 0;
 }
