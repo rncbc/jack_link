@@ -43,54 +43,9 @@ jack_link::~jack_link (void)
 }
 
 
-int jack_link::process_callback ( jack_nframes_t nframes, void *pvUserData )
+int jack_link::process_callback (
+	jack_nframes_t /*nframes*/, void */*pvUserData*/ )
 {
-	jack_link *pJackLink = static_cast<jack_link *> (pvUserData);
-	return pJackLink->process_callback(nframes);
-}
-
-
-int jack_link::process_callback ( jack_nframes_t nframes )
-{
-	if (m_npeers > 0 && m_mutex.try_lock()) {
-
-		int request = 0;
-		double beats_per_minute = 0.0;
-		double beats_per_bar = 0.0;
-
-		if (jack_transport_query(m_client, &m_position) == 0) {
-			if (m_position.valid & JackPositionBBT) {
-				if (std::abs(m_tempo - m_position.beats_per_minute) > 0.01) {
-					beats_per_minute = m_position.beats_per_minute;
-					++request;
-				}
-				if (std::abs(m_quantum - m_position.beats_per_bar)  > 0.01) {
-					beats_per_bar = m_position.beats_per_bar;
-					++request;
-				}
-			}
-		}
-
-		if (request > 0) {
-			auto timeline = m_link.captureAudioTimeline();
-			const auto frame_time
-				= ::jack_last_frame_time(m_client);
-			const auto host_time = std::chrono::microseconds(
-				llround(1.0e6 * frame_time / m_srate));
-			if (beats_per_minute > 0.0) {
-				m_tempo = beats_per_minute;
-				timeline.setTempo(m_tempo, host_time);
-			}
-			if (beats_per_bar > 0.0) {
-				m_quantum = beats_per_bar;
-				timeline.requestBeatAtTime(0, host_time, m_quantum);
-			}
-			m_link.commitAudioTimeline(timeline);
-		}
-
-		m_mutex.unlock();
-	}
-
 	return 0;
 }
 
@@ -141,15 +96,6 @@ void jack_link::timebase_callback (
 }
 
 
-void jack_link::tempo_callback ( const double bpm )
-{
-	std::lock_guard<std::mutex> lock(m_mutex);
-	std::cerr << "jack_link::tempo_callback(" << bpm << ")" << std::endl;
-	m_tempo_req = bpm;
-	timebase_reset();
-}
-
-
 void jack_link::peers_callback ( const std::size_t npeers )
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
@@ -159,12 +105,21 @@ void jack_link::peers_callback ( const std::size_t npeers )
 }
 
 
+void jack_link::tempo_callback ( const double tempo )
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	std::cerr << "jack_link::tempo_callback(" << tempo << ")" << std::endl;
+	m_tempo_req = tempo;
+	timebase_reset();
+}
+
+
 void jack_link::initialize (void)
 {
 	::memset(&m_position, 0, sizeof(jack_position_t));
 
-	m_link.setTempoCallback([this](const double bpm) { tempo_callback(bpm); });
 	m_link.setNumPeersCallback([this](const std::size_t n) { peers_callback(n); });
+	m_link.setTempoCallback([this](const double bpm) { tempo_callback(bpm); });
 
 	jack_status_t status = JackFailure;
 	m_client = ::jack_client_open("jack_link", JackNullOption, &status);
@@ -218,6 +173,51 @@ void jack_link::terminate (void)
 }
 
 
+void jack_link::worker_run (void)
+{
+//	std::cerr << "jack_link::worker_run() ..." << std::endl;
+
+	if (m_client && m_npeers > 0 && m_mutex.try_lock()) {
+
+		int request = 0;
+		double beats_per_minute = 0.0;
+		double beats_per_bar = 0.0;
+
+		if (jack_transport_query(m_client, &m_position) == 0) {
+			if (m_position.valid & JackPositionBBT) {
+				if (std::abs(m_tempo - m_position.beats_per_minute) > 0.01) {
+					beats_per_minute = m_position.beats_per_minute;
+					++request;
+				}
+				if (std::abs(m_quantum - m_position.beats_per_bar)  > 0.01) {
+					beats_per_bar = m_position.beats_per_bar;
+					++request;
+				}
+			}
+		}
+
+		if (request > 0) {
+			auto timeline = m_link.captureAppTimeline();
+			const auto frame_time
+				= ::jack_last_frame_time(m_client);
+			const auto host_time = std::chrono::microseconds(
+				llround(1.0e6 * frame_time / m_srate));
+			if (beats_per_minute > 0.0) {
+				m_tempo = beats_per_minute;
+				timeline.setTempo(m_tempo, host_time);
+			}
+			if (beats_per_bar > 0.0) {
+				m_quantum = beats_per_bar;
+				timeline.requestBeatAtTime(0, host_time, m_quantum);
+			}
+			m_link.commitAppTimeline(timeline);
+		}
+
+		m_mutex.unlock();
+	}
+}
+
+
 void jack_link::timebase_reset (void)
 {
 	if (m_client && m_npeers > 0) {
@@ -235,20 +235,16 @@ class jack_link_worker
 {
 public:
 
-	jack_link_worker(jack_link& app)
-		: m_jack_link(app), m_running(false),
-		m_thread([this]{ thread_run(); }) { m_thread.detach(); }
+	jack_link_worker(jack_link& master)
+		: m_master(master), m_running(false),
+		m_thread([this]{ thread_run(); })
+		{ m_thread.detach(); }
 
 	void running(bool running)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 		m_running = running;
 		m_cond.notify_all();
-	}
-
-	bool running() const
-	{
-		return m_running;
 	}
 
 protected:
@@ -262,8 +258,8 @@ protected:
 
 		while (m_running) {
 			std::unique_lock<std::mutex> lock(m_mutex);
-			m_cond.wait(lock);//.wait_for(lock, std::chrono::milliseconds(200));
-		//	std::cerr << "jack_link_worker: running ..." << std::endl;
+			m_cond.wait_for(lock, std::chrono::milliseconds(200));
+			m_master.worker_run();
 		}
 
 		std::cerr << std::endl;
@@ -272,19 +268,18 @@ protected:
 
 private:
 
+	jack_link& m_master;
 	bool m_running;
 	std::thread m_thread;
 	std::mutex m_mutex;
 	std::condition_variable m_cond;
-
-	jack_link& m_jack_link;
 };
 
 
-int main ( int, char ** )
+int main ( int /*argc*/, char **/*argv*/ )
 {
-	jack_link app;
-	jack_link_worker worker(app);
+	jack_link master;
+	jack_link_worker worker(master);
 
 	std::string line;
 	while (line.compare("quit")) {

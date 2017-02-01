@@ -39,14 +39,13 @@ public:
 	jack_link();
 	~jack_link();
 
+	void worker_run();
+
 protected:
 
 	static int process_callback(
 		jack_nframes_t nframes,
 		void *pvUserData);
-
-	int process_callback(
-		jack_nframes_t nframes);
 
 	static void timebase_callback(
 		jack_transport_state_t state,
@@ -60,8 +59,8 @@ protected:
 		jack_position_t *position,
 		int new_pos);
 
-	void peers_callback(const std::size_t n);
-	void tempo_callback(const double bpm);
+	void peers_callback(const std::size_t npeers);
+	void tempo_callback(const double tempo);
 
 	void initialize();
 	void terminate();
