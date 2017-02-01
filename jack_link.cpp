@@ -28,7 +28,7 @@
 
 jack_link::jack_link (void) :
 	m_link(120.0), m_pJackClient(NULL),
-	m_sampleRate(44100.0), m_numPeers(0),
+	m_sampleRate(44100.0), m_timebase(0), m_numPeers(0),
 	m_tempo(120.0), m_requestedTempo(0.0),
 	m_quantum(4.0), m_requestedQuantum(0.0)
 {
@@ -51,7 +51,7 @@ int jack_link::process_callback ( jack_nframes_t nframes, void *pvUserData )
 
 int jack_link::process_callback ( jack_nframes_t nframes )
 {
-	if (m_mutex.try_lock()) {
+	if (m_numPeers > 0 && m_mutex.try_lock()) {
 
 		int request = 0;
 
@@ -141,6 +141,8 @@ void jack_link::timebase_callback (
 	position->ticks_per_beat = ticks_per_beat;
 	position->beats_per_minute = beats_per_minute;
 	position->beat_type = beat_type;
+
+	if (new_pos) ++m_timebase;
 }
 
 
@@ -149,6 +151,7 @@ void jack_link::tempo_callback ( const double bpm )
 	std::lock_guard<std::mutex> lock(m_mutex);
 	std::cerr << "jack_link::tempo_callback(" << bpm << ")" << std::endl;
 	m_requestedTempo = bpm;
+	timebase_reset();
 }
 
 
@@ -157,6 +160,7 @@ void jack_link::peers_callback ( const std::size_t n )
 	std::lock_guard<std::mutex> lock(m_mutex);
 	std::cerr << "jack_link::peers_callback(" << n << ")" << std::endl;
 	m_numPeers = n;
+	timebase_reset();
 }
 
 
@@ -201,8 +205,6 @@ void jack_link::initialize (void)
 
 	::jack_set_process_callback(
 		m_pJackClient, process_callback, this);
-	::jack_set_timebase_callback(
-		m_pJackClient, 0, jack_link::timebase_callback, this);
 
 	::jack_activate(m_pJackClient);
 
@@ -218,6 +220,19 @@ void jack_link::terminate (void)
 		::jack_deactivate(m_pJackClient);
 		::jack_client_close(m_pJackClient);
 		m_pJackClient = NULL;
+	}
+}
+
+
+void jack_link::timebase_reset (void)
+{
+	if (m_pJackClient && m_numPeers > 0) {
+		if (m_timebase > 0) {
+			::jack_release_timebase(m_pJackClient);
+			m_timebase = 0;
+		}
+		::jack_set_timebase_callback(
+			m_pJackClient, 0, jack_link::timebase_callback, this);
 	}
 }
 

@@ -66,12 +66,15 @@ protected:
 	void initialize();
 	void terminate();
 
+	void timebase_reset();
+
 private:
 
 	ableton::Link m_link;
 	jack_client_t *m_pJackClient;
 	jack_position_t m_jack_pos;
 	double m_sampleRate;
+	unsigned long m_timebase;
 	std::size_t m_numPeers;
 	double m_tempo, m_requestedTempo;
 	double m_quantum, m_requestedQuantum;
@@ -79,6 +82,6 @@ private:
 };
 
 
-#endif//__jack_link_hpp
+#endif //__jack_link_hpp
 
 // end of jack_link.hpp
