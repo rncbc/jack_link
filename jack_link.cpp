@@ -27,10 +27,9 @@
 
 
 jack_link::jack_link (void) :
-	m_link(120.0), m_pJackClient(NULL),
-	m_sampleRate(44100.0), m_timebase(0), m_numPeers(0),
-	m_tempo(120.0), m_requestedTempo(0.0),
-	m_quantum(4.0), m_requestedQuantum(0.0)
+	m_link(120.0), m_client(NULL),
+	m_srate(44100.0), m_timebase(0), m_npeers(0),
+	m_tempo(120.0), m_tempo_req(0.0), m_quantum(4.0)
 {
 	initialize();
 }
@@ -51,18 +50,20 @@ int jack_link::process_callback ( jack_nframes_t nframes, void *pvUserData )
 
 int jack_link::process_callback ( jack_nframes_t nframes )
 {
-	if (m_numPeers > 0 && m_mutex.try_lock()) {
+	if (m_npeers > 0 && m_mutex.try_lock()) {
 
 		int request = 0;
+		double beats_per_minute = 0.0;
+		double beats_per_bar = 0.0;
 
-		if (jack_transport_query(m_pJackClient, &m_jack_pos) == 0) {
-			if (m_jack_pos.valid & JackPositionBBT) {
-				if (std::abs(m_tempo - m_jack_pos.beats_per_minute) > 0.01) {
-					m_requestedTempo = m_jack_pos.beats_per_minute;
+		if (jack_transport_query(m_client, &m_position) == 0) {
+			if (m_position.valid & JackPositionBBT) {
+				if (std::abs(m_tempo - m_position.beats_per_minute) > 0.01) {
+					beats_per_minute = m_position.beats_per_minute;
 					++request;
 				}
-				if (std::abs(m_quantum - m_jack_pos.beats_per_bar)  > 0.01) {
-					m_requestedQuantum = m_jack_pos.beats_per_bar;
+				if (std::abs(m_quantum - m_position.beats_per_bar)  > 0.01) {
+					beats_per_bar = m_position.beats_per_bar;
 					++request;
 				}
 			}
@@ -70,19 +71,17 @@ int jack_link::process_callback ( jack_nframes_t nframes )
 
 		if (request > 0) {
 			auto timeline = m_link.captureAudioTimeline();
-			const auto frameTime
-				= ::jack_last_frame_time(m_pJackClient);
-			const auto hostTime = std::chrono::microseconds(
-				llround(1.0e6 * frameTime / m_sampleRate));
-			if (m_requestedTempo > 0.0) {
-				timeline.setTempo(m_requestedTempo, hostTime);
-				m_tempo = m_requestedTempo;
-				m_requestedTempo = 0.0;
+			const auto frame_time
+				= ::jack_last_frame_time(m_client);
+			const auto host_time = std::chrono::microseconds(
+				llround(1.0e6 * frame_time / m_srate));
+			if (beats_per_minute > 0.0) {
+				m_tempo = beats_per_minute;
+				timeline.setTempo(m_tempo, host_time);
 			}
-			if (m_requestedQuantum > 0.0) {
-				timeline.requestBeatAtTime(0, hostTime, m_requestedQuantum);
-				m_quantum = m_requestedQuantum;
-				m_requestedQuantum = 0.0;
+			if (beats_per_bar > 0.0) {
+				m_quantum = beats_per_bar;
+				timeline.requestBeatAtTime(0, host_time, m_quantum);
 			}
 			m_link.commitAudioTimeline(timeline);
 		}
@@ -107,15 +106,9 @@ void jack_link::timebase_callback (
 	jack_transport_state_t state, jack_nframes_t nframes,
 	jack_position_t *position, int new_pos )
 {
-	if (m_mutex.try_lock()) {
-		if (m_requestedTempo > 0.0) {
-			m_tempo = m_requestedTempo;
-			m_requestedTempo = 0.0;
-		}
-		if (m_requestedQuantum > 0.0) {
-			m_quantum = m_requestedQuantum;
-			m_requestedQuantum = 0.0;
-		}
+	if (m_tempo_req > 0.0 && m_mutex.try_lock()) {
+		m_tempo = m_tempo_req;
+		m_tempo_req = 0.0;
 		m_mutex.unlock();
 	}
 
@@ -129,9 +122,9 @@ void jack_link::timebase_callback (
 	const double bar = std::floor(beats / beats_per_bar);
 	const double beat = beats - bar * beats_per_bar;
 
-	const bool valid = (m_jack_pos.valid & JackPositionBBT);
-	const double ticks_per_beat = (valid ? m_jack_pos.ticks_per_beat : 960.0);
-	const float beat_type = (valid ? m_jack_pos.beat_type : 4.0f);
+	const bool valid = (m_position.valid & JackPositionBBT);
+	const double ticks_per_beat = (valid ? m_position.ticks_per_beat : 960.0);
+	const float beat_type = (valid ? m_position.beat_type : 4.0f);
 
 	position->valid = JackPositionBBT;
 	position->bar = int32_t(bar) + 1;
@@ -150,30 +143,30 @@ void jack_link::tempo_callback ( const double bpm )
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	std::cerr << "jack_link::tempo_callback(" << bpm << ")" << std::endl;
-	m_requestedTempo = bpm;
+	m_tempo_req = bpm;
 	timebase_reset();
 }
 
 
-void jack_link::peers_callback ( const std::size_t n )
+void jack_link::peers_callback ( const std::size_t npeers )
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::cerr << "jack_link::peers_callback(" << n << ")" << std::endl;
-	m_numPeers = n;
+	std::cerr << "jack_link::peers_callback(" << npeers << ")" << std::endl;
+	m_npeers = npeers;
 	timebase_reset();
 }
 
 
 void jack_link::initialize (void)
 {
-	::memset(&m_jack_pos, 0, sizeof(jack_position_t));
+	::memset(&m_position, 0, sizeof(jack_position_t));
 
 	m_link.setTempoCallback([this](const double bpm) { tempo_callback(bpm); });
 	m_link.setNumPeersCallback([this](const std::size_t n) { peers_callback(n); });
 
 	jack_status_t status = JackFailure;
-	m_pJackClient = ::jack_client_open("jack_link", JackNullOption, &status);
-	if (m_pJackClient == NULL) {
+	m_client = ::jack_client_open("jack_link", JackNullOption, &status);
+	if (m_client == NULL) {
 		std::cerr << "Could not initialize JACK client:" << std::endl;
 		if (status & JackFailure)
 			std::cerr << "Overall operation failed." << std::endl;
@@ -201,12 +194,11 @@ void jack_link::initialize (void)
 		std::terminate();
 	};
 
-	m_sampleRate = double(::jack_get_sample_rate(m_pJackClient));
+	m_srate = double(::jack_get_sample_rate(m_client));
 
-	::jack_set_process_callback(
-		m_pJackClient, process_callback, this);
+	::jack_set_process_callback(m_client, process_callback, this);
 
-	::jack_activate(m_pJackClient);
+	::jack_activate(m_client);
 
 	m_link.enable(true);
 }
@@ -216,23 +208,23 @@ void jack_link::terminate (void)
 {
 	m_link.enable(false);
 
-	if (m_pJackClient) {
-		::jack_deactivate(m_pJackClient);
-		::jack_client_close(m_pJackClient);
-		m_pJackClient = NULL;
+	if (m_client) {
+		::jack_deactivate(m_client);
+		::jack_client_close(m_client);
+		m_client = NULL;
 	}
 }
 
 
 void jack_link::timebase_reset (void)
 {
-	if (m_pJackClient && m_numPeers > 0) {
+	if (m_client && m_npeers > 0) {
 		if (m_timebase > 0) {
-			::jack_release_timebase(m_pJackClient);
+			::jack_release_timebase(m_client);
 			m_timebase = 0;
 		}
 		::jack_set_timebase_callback(
-			m_pJackClient, 0, jack_link::timebase_callback, this);
+			m_client, 0, jack_link::timebase_callback, this);
 	}
 }
 

@@ -71,13 +71,13 @@ protected:
 private:
 
 	ableton::Link m_link;
-	jack_client_t *m_pJackClient;
-	jack_position_t m_jack_pos;
-	double m_sampleRate;
+	jack_client_t *m_client;
+	jack_position_t m_position;
+	double m_srate;
 	unsigned long m_timebase;
-	std::size_t m_numPeers;
-	double m_tempo, m_requestedTempo;
-	double m_quantum, m_requestedQuantum;
+	std::size_t m_npeers;
+	double m_tempo, m_tempo_req;
+	double m_quantum;
 	std::mutex m_mutex;
 };
 
