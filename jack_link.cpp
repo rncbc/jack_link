@@ -180,11 +180,15 @@ void jack_link::terminate (void)
 
 void jack_link::timebase_reset (void)
 {
-	if (m_client && m_npeers > 0) {
-		if (m_timebase > 0) {
-			::jack_release_timebase(m_client);
-			m_timebase = 0;
-		}
+	if (m_client == NULL)
+		return;
+
+	if (m_timebase > 0) {
+		::jack_release_timebase(m_client);
+		m_timebase = 0;
+	}
+
+	if (m_npeers > 0) {
 		::jack_set_timebase_callback(
 			m_client, 0, jack_link::timebase_callback, this);
 	}
@@ -205,7 +209,7 @@ void jack_link::worker_start (void)
 
 void jack_link::worker_run (void)
 {
-	if (m_client && m_npeers > 0 && m_mutex.try_lock()) {
+	if (m_client && m_npeers > 0) {
 
 		int request = 0;
 
@@ -218,7 +222,7 @@ void jack_link::worker_run (void)
 					beats_per_minute = m_position.beats_per_minute;
 					++request;
 				}
-				if (std::abs(m_quantum - m_position.beats_per_bar)  > 0.01) {
+				if (std::abs(m_quantum - m_position.beats_per_bar) > 0.01) {
 					beats_per_bar = m_position.beats_per_bar;
 					++request;
 				}
@@ -240,8 +244,6 @@ void jack_link::worker_run (void)
 			}
 			m_link.commitAppTimeline(timeline);
 		}
-
-		m_mutex.unlock();
 	}
 }
 
