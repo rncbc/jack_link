@@ -80,9 +80,9 @@ void jack_link::timebase_callback (
 	const double bar = std::floor(beats / beats_per_bar);
 	const double beat = beats - bar * beats_per_bar;
 
-	const bool valid = (m_position.valid & JackPositionBBT);
+	const bool   valid = (m_position.valid & JackPositionBBT);
 	const double ticks_per_beat = (valid ? m_position.ticks_per_beat : 960.0);
-	const float beat_type = (valid ? m_position.beat_type : 4.0f);
+	const float  beat_type = (valid ? m_position.beat_type : 4.0f);
 
 	position->valid = JackPositionBBT;
 	position->bar = int32_t(bar) + 1;
@@ -227,8 +227,7 @@ void jack_link::worker_run (void)
 
 		if (request > 0) {
 			auto timeline = m_link.captureAppTimeline();
-			const auto frame_time
-				= ::jack_last_frame_time(m_client);
+			const auto frame_time = ::jack_frame_time(m_client);
 			const auto host_time = std::chrono::microseconds(
 				llround(1.0e6 * frame_time / m_srate));
 			if (beats_per_minute > 0.0) {
