@@ -30,6 +30,7 @@
 
 #include <chrono>
 #include <mutex>
+#include <thread>
 
 
 class jack_link
@@ -38,8 +39,6 @@ public:
 
 	jack_link();
 	~jack_link();
-
-	void worker_run();
 
 protected:
 
@@ -67,6 +66,10 @@ protected:
 
 	void timebase_reset();
 
+	void worker_start();
+	void worker_run();
+	void worker_stop();
+
 private:
 
 	ableton::Link m_link;
@@ -77,7 +80,10 @@ private:
 	std::size_t m_npeers;
 	double m_tempo, m_tempo_req;
 	double m_quantum;
+	bool m_running;
+	std::thread m_thread;
 	std::mutex m_mutex;
+	std::condition_variable m_cond;
 };
 
 

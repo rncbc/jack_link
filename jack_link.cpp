@@ -21,8 +21,6 @@
 
 #include "jack_link.hpp"
 
-#include <thread>
-
 #include <iostream>
 #include <string>
 #include <cctype>
@@ -31,8 +29,11 @@
 jack_link::jack_link (void) :
 	m_link(120.0), m_client(NULL),
 	m_srate(44100.0), m_timebase(0), m_npeers(0),
-	m_tempo(120.0), m_tempo_req(0.0), m_quantum(4.0)
+	m_tempo(120.0), m_tempo_req(0.0), m_quantum(4.0),
+	m_running(false), m_thread([this]{ worker_start(); })
 {
+    m_thread.detach();
+
 	initialize();
 }
 
@@ -102,6 +103,7 @@ void jack_link::peers_callback ( const std::size_t npeers )
 	std::cerr << "jack_link::peers_callback(" << npeers << ")" << std::endl;
 	m_npeers = npeers;
 	timebase_reset();
+	m_cond.notify_one();
 }
 
 
@@ -111,6 +113,7 @@ void jack_link::tempo_callback ( const double tempo )
 	std::cerr << "jack_link::tempo_callback(" << tempo << ")" << std::endl;
 	m_tempo_req = tempo;
 	timebase_reset();
+	m_cond.notify_one();
 }
 
 
@@ -163,6 +166,8 @@ void jack_link::initialize (void)
 
 void jack_link::terminate (void)
 {
+	worker_stop();
+
 	m_link.enable(false);
 
 	if (m_client) {
@@ -173,13 +178,37 @@ void jack_link::terminate (void)
 }
 
 
+void jack_link::timebase_reset (void)
+{
+	if (m_client && m_npeers > 0) {
+		if (m_timebase > 0) {
+			::jack_release_timebase(m_client);
+			m_timebase = 0;
+		}
+		::jack_set_timebase_callback(
+			m_client, 0, jack_link::timebase_callback, this);
+	}
+}
+
+
+void jack_link::worker_start (void)
+{
+	m_running = true;
+
+	while (m_running) {
+		std::unique_lock<std::mutex> lock(m_mutex);
+		m_cond.wait_for(lock, std::chrono::milliseconds(200));
+		worker_run();
+	}
+}
+
+
 void jack_link::worker_run (void)
 {
-//	std::cerr << "jack_link::worker_run() ..." << std::endl;
-
 	if (m_client && m_npeers > 0 && m_mutex.try_lock()) {
 
 		int request = 0;
+
 		double beats_per_minute = 0.0;
 		double beats_per_bar = 0.0;
 
@@ -218,68 +247,17 @@ void jack_link::worker_run (void)
 }
 
 
-void jack_link::timebase_reset (void)
+void jack_link::worker_stop (void)
 {
-	if (m_client && m_npeers > 0) {
-		if (m_timebase > 0) {
-			::jack_release_timebase(m_client);
-			m_timebase = 0;
-		}
-		::jack_set_timebase_callback(
-			m_client, 0, jack_link::timebase_callback, this);
-	}
+	std::lock_guard<std::mutex> lock(m_mutex);
+	m_running = false;
+	m_cond.notify_all();
 }
-
-
-class jack_link_worker
-{
-public:
-
-	jack_link_worker(jack_link& master)
-		: m_master(master), m_running(false),
-		m_thread([this]{ thread_run(); })
-		{ m_thread.detach(); }
-
-	void running(bool running)
-	{
-		std::lock_guard<std::mutex> lock(m_mutex);
-		m_running = running;
-		m_cond.notify_all();
-	}
-
-protected:
-
-	void thread_run ()
-	{
-		std::cerr << std::endl;
-		std::cerr << "jack_link_worker: started ..." << std::endl;
-
-		m_running = true;
-
-		while (m_running) {
-			std::unique_lock<std::mutex> lock(m_mutex);
-			m_cond.wait_for(lock, std::chrono::milliseconds(200));
-			m_master.worker_run();
-		}
-
-		std::cerr << std::endl;
-		std::cerr << "jack_link_worker: terminated." << std::endl;
-	}
-
-private:
-
-	jack_link& m_master;
-	bool m_running;
-	std::thread m_thread;
-	std::mutex m_mutex;
-	std::condition_variable m_cond;
-};
 
 
 int main ( int /*argc*/, char **/*argv*/ )
 {
-	jack_link master;
-	jack_link_worker worker(master);
+	jack_link app;
 
 	std::string line;
 	while (line.compare("quit")) {
@@ -289,8 +267,6 @@ int main ( int /*argc*/, char **/*argv*/ )
 			line.begin(), line.end(),
 			line.begin(), ::tolower);
 	}
-
-	worker.running(false);
 
 	return 0;
 }
