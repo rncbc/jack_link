@@ -1,22 +1,22 @@
 # jack_link 
 
-  jack_link is a [JACK](http://jackaudio.org) transport timebase prototype
-  bridge to [Ableton Link](https://www.ableton.com/en/link/).
+  **jack_link** is a [JACK](http://jackaudio.org) transport timebase
+  prototype bridge to [Ableton Link](https://www.ableton.com/en/link/).
 
   Upstream author: Rui Nuno Capela <rncbc@rncbc.org>.
 
 
 ## Prerequisites
 
-   jack_link software prerequisites for building are of course a C++11 compiler
-   (_g++_), the [JACK](http://jackaudio.org) client libraries and headers
+   **jack_link** software prerequisites for building are a C++11 compiler
+   (_g++_), the [JACK](http://jackaudio.org) client C libraries and headers
    (_libjack-devel_) and the [Asio C++ Library](http://think-async.com/Asio/)
    for cross-platform network and low-level I/O (_asio-devel_).
 
 
 ## Building
 
-   jack_link relies on [link](https://github.com/Ableton/link) as a Git 
+   **jack_link** relies on [link](https://github.com/Ableton/link) as a Git 
    submodule, so after the main [jack_link](https://github.com/rncbc/jack_link)
    repository is cloned, one needs to setup the working tree as follows:
 
@@ -37,22 +37,13 @@
    Enjoy.
 
 
+## License
+
+   **jack_link** is free, open-source [Linux Audio](http://linuxaudio.org)
+   software, distributed under the terms of the GNU General Public License
+   ([GPL](http://www.gnu.org/copyleft/gpl.html)) version 2 or later.
+
+
 ## Copyright
 
    Copyright (C) 2017, rncbc aka Rui Nuno Capela. All rights reserved.
-
-## License
-
-   This program is free software; you can redistribute it and/or
-   modify it under the terms of the GNU General Public License
-   as published by the Free Software Foundation; either version 2
-   of the License, or (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License along
-   with this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
