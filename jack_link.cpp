@@ -32,7 +32,7 @@ jack_link::jack_link (void) :
 	m_tempo(120.0), m_tempo_req(0.0), m_quantum(4.0),
 	m_running(false), m_thread([this]{ worker_start(); })
 {
-    m_thread.detach();
+	m_thread.detach();
 
 	initialize();
 }

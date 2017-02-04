@@ -6,6 +6,14 @@
   Upstream author: Rui Nuno Capela <rncbc@rncbc.org>.
 
 
+## Prerequisites
+
+   jack_link software prerequisites for building are of course a C++11 compiler
+   (_g++_), the [JACK](http://jackaudio.org) client libraries and headers
+   (_libjack-devel_) and the [Asio C++ Library](http://think-async.com/Asio/)
+   for cross-platform network and low-level I/O (_asio-devel_).
+
+
 ## Building
 
    jack_link relies on [link](https://github.com/Ableton/link) as a Git 
@@ -22,7 +30,7 @@
 
      ./jack_link
 
-   To quit, enter "quit" on the "jack_link>" prompt:
+   To quit, enter `quit` on the `jack_link>` prompt:
 
      jack_link> quit
 
