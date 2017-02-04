@@ -216,7 +216,7 @@ void jack_link::worker_run (void)
 		double beats_per_minute = 0.0;
 		double beats_per_bar = 0.0;
 
-		jack_transport_query(m_client, &m_position);
+		::jack_transport_query(m_client, &m_position);
 
 		if (m_position.valid & JackPositionBBT) {
 			if (std::abs(m_tempo - m_position.beats_per_minute) > 0.01) {
