@@ -204,11 +204,15 @@ void jack_link::worker_start (void)
 {
 	m_running = true;
 
+	std::cout << m_name << ": started..." << std::endl; 
+
 	while (m_running) {
 		std::unique_lock<std::mutex> lock(m_mutex);
 		m_cond.wait_for(lock, std::chrono::milliseconds(200));
 		worker_run();
 	}
+
+	std::cout << m_name << ": terminated." << std::endl;
 }
 
 
@@ -263,8 +267,6 @@ void jack_link::worker_stop (void)
 
 #include <csignal>
 
-std::atomic_flag sig_flag = ATOMIC_FLAG_INIT;
-
 void sig_handler ( int sig_no )
 {
 	::fclose(stdin);
@@ -276,12 +278,12 @@ void sig_handler ( int sig_no )
 int main ( int /*argc*/, char **/*argv*/ )
 {
 	::signal(SIGABRT, &sig_handler);
-	::signal(SIGTERM, &sig_handler);
+	::signal(SIGHUP,  &sig_handler);
 	::signal(SIGINT,  &sig_handler);
+	::signal(SIGQUIT, &sig_handler);
+	::signal(SIGTERM, &sig_handler);
 
 	jack_link app("jack_link");
-
-	std::cout << app.name() << ": h!" << std::endl; 
 
 	std::string line;
 	while (!std::cin.eof()) {
@@ -295,7 +297,6 @@ int main ( int /*argc*/, char **/*argv*/ )
 	}
 
 	std::cout << std::endl;
-	std::cout << app.name() << ": bye!" << std::endl;
 	return 0;
 }
 
