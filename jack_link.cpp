@@ -23,11 +23,10 @@
 
 #include <iostream>
 #include <string>
-#include <cctype>
 
 
-jack_link::jack_link (void) :
-	m_link(120.0), m_client(NULL),
+jack_link::jack_link ( const std::string& name ) :
+	m_name(name), m_link(120.0), m_client(NULL),
 	m_srate(44100.0), m_timebase(0), m_npeers(0),
 	m_tempo(120.0), m_tempo_req(0.0), m_quantum(4.0),
 	m_running(false), m_thread([this]{ worker_start(); })
@@ -41,6 +40,12 @@ jack_link::jack_link (void) :
 jack_link::~jack_link (void)
 {
 	terminate();
+}
+
+
+const std::string& jack_link::name (void) const
+{
+	return m_name;
 }
 
 
@@ -125,7 +130,7 @@ void jack_link::initialize (void)
 	m_link.setTempoCallback([this](const double bpm) { tempo_callback(bpm); });
 
 	jack_status_t status = JackFailure;
-	m_client = ::jack_client_open("jack_link", JackNullOption, &status);
+	m_client = ::jack_client_open(m_name.c_str(), JackNullOption, &status);
 	if (m_client == NULL) {
 		std::cerr << "Could not initialize JACK client:" << std::endl;
 		if (status & JackFailure)
@@ -256,19 +261,41 @@ void jack_link::worker_stop (void)
 }
 
 
+#include <csignal>
+
+std::atomic_flag sig_flag = ATOMIC_FLAG_INIT;
+
+void sig_handler ( int sig_no )
+{
+	::fclose(stdin);
+}
+
+
+#include <cctype>
+
 int main ( int /*argc*/, char **/*argv*/ )
 {
-	jack_link app;
+	::signal(SIGABRT, &sig_handler);
+	::signal(SIGTERM, &sig_handler);
+	::signal(SIGINT,  &sig_handler);
+
+	jack_link app("jack_link");
+
+	std::cout << app.name() << ": h!" << std::endl; 
 
 	std::string line;
-	while (line.compare("quit")) {
-		std::cout << "jack_link> ";
+	while (!std::cin.eof()) {
+		std::cout << app.name() << "> ";
 		getline(std::cin, line);
 		std::transform(
 			line.begin(), line.end(),
 			line.begin(), ::tolower);
+		if (!line.compare("quit"))
+			break;
 	}
 
+	std::cout << std::endl;
+	std::cout << app.name() << ": bye!" << std::endl;
 	return 0;
 }
 

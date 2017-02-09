@@ -37,8 +37,10 @@ class jack_link
 {
 public:
 
-	jack_link();
+	jack_link(const std::string& name);
 	~jack_link();
+
+	const std::string& name() const;
 
 protected:
 
@@ -72,6 +74,7 @@ protected:
 
 private:
 
+	std::string m_name;
 	ableton::Link m_link;
 	jack_client_t *m_client;
 	jack_position_t m_position;
