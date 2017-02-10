@@ -208,8 +208,8 @@ void jack_link::worker_start (void)
 
 	while (m_running) {
 		std::unique_lock<std::mutex> lock(m_mutex);
-		m_cond.wait_for(lock, std::chrono::milliseconds(200));
 		worker_run();
+		m_cond.wait_for(lock, std::chrono::milliseconds(200));
 	}
 
 	std::cout << m_name << ": terminated." << std::endl;
@@ -260,8 +260,10 @@ void jack_link::worker_run (void)
 void jack_link::worker_stop (void)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	m_running = false;
-	m_cond.notify_all();
+	if (m_running) {
+		m_running = false;
+		m_cond.notify_all();
+	}
 }
 
 
@@ -270,6 +272,7 @@ void jack_link::worker_stop (void)
 void sig_handler ( int sig_no )
 {
 	::fclose(stdin);
+	std::cerr << std::endl;
 }
 
 
@@ -296,7 +299,6 @@ int main ( int /*argc*/, char **/*argv*/ )
 			break;
 	}
 
-	std::cout << std::endl;
 	return 0;
 }
 
