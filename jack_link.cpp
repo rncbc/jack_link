@@ -25,8 +25,8 @@
 #include <string>
 
 
-jack_link::jack_link ( const std::string& name ) :
-	m_name(name), m_link(120.0), m_client(NULL),
+jack_link::jack_link (void) :
+	m_link(120.0), m_client(NULL),
 	m_srate(44100.0), m_timebase(0), m_npeers(0),
 	m_tempo(120.0), m_tempo_req(0.0), m_quantum(4.0),
 	m_running(false), m_thread([this]{ worker_start(); })
@@ -43,9 +43,14 @@ jack_link::~jack_link (void)
 }
 
 
-const std::string& jack_link::name (void) const
+const char *jack_link::name (void)
 {
-	return m_name;
+	return JACK_LINK_NAME;
+}
+
+const char *jack_link::version (void)
+{
+	return JACK_LINK_VERSION;
 }
 
 
@@ -130,7 +135,7 @@ void jack_link::initialize (void)
 	m_link.setTempoCallback([this](const double bpm) { tempo_callback(bpm); });
 
 	jack_status_t status = JackFailure;
-	m_client = ::jack_client_open(m_name.c_str(), JackNullOption, &status);
+	m_client = ::jack_client_open(jack_link::name(), JackNullOption, &status);
 	if (m_client == NULL) {
 		std::cerr << "Could not initialize JACK client:" << std::endl;
 		if (status & JackFailure)
@@ -204,7 +209,8 @@ void jack_link::worker_start (void)
 {
 	m_running = true;
 
-	std::cout << m_name << ": started..." << std::endl; 
+	std::cout << jack_link::name() << " v" << jack_link::version() << std::endl; 
+	std::cout << jack_link::name() << ": started..." << std::endl; 
 
 	while (m_running) {
 		std::unique_lock<std::mutex> lock(m_mutex);
@@ -212,7 +218,7 @@ void jack_link::worker_start (void)
 		m_cond.wait_for(lock, std::chrono::milliseconds(200));
 	}
 
-	std::cout << m_name << ": terminated." << std::endl;
+	std::cout << jack_link::name() << ": terminated." << std::endl;
 }
 
 
@@ -286,7 +292,7 @@ int main ( int /*argc*/, char **/*argv*/ )
 	::signal(SIGQUIT, &sig_handler);
 	::signal(SIGTERM, &sig_handler);
 
-	jack_link app("jack_link");
+	jack_link app;
 
 	std::string line;
 	while (!std::cin.eof()) {

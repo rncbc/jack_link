@@ -22,6 +22,21 @@
 #ifndef __jack_link_hpp
 #define __jack_link_hpp
 
+#define JACK_LINK_QUOTE1(x) #x
+#define JACK_LINK_QUOTE2(x) JACK_LINK_QUOTE1(x)
+
+#if defined(_NAME)
+#define JACK_LINK_NAME      JACK_LINK_QUOTE2(_NAME)
+#else
+#define JACK_LINK_NAME      JACK_LINK_QUOTE1(jack_link)
+#endif
+
+#if defined(_VERSION)
+#define JACK_LINK_VERSION   JACK_LINK_QUOTE2(_VERSION)
+#else
+#define JACK_LINK_VERSION   JACK_LINK_QUOTE1(0.0.2)
+#endif
+
 #define _USE_MATH_DEFINES
 
 #include <ableton/Link.hpp>
@@ -37,10 +52,11 @@ class jack_link
 {
 public:
 
-	jack_link(const std::string& name);
+	jack_link();
 	~jack_link();
 
-	const std::string& name() const;
+	static const char *name();
+	static const char *version();
 
 protected:
 
@@ -74,7 +90,6 @@ protected:
 
 private:
 
-	std::string m_name;
 	ableton::Link m_link;
 	jack_client_t *m_client;
 	jack_position_t m_position;
