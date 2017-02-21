@@ -1,8 +1,8 @@
 NAME    ?= jack_link
 
 VERSION ?= $(shell \
-	git describe --tags --dirty --abbrev=6 2>/dev/null |\
-	sed 's/^[vV]//;s/^[^_]\+_//;s/-g/git./;s/[_|-]\+/./g')
+	git describe --tags --dirty --abbrev=6 2>/dev/null \
+	| sed 's/^[^0-9]\+//;s/-g/git./;s/[_|-]\+/./g')
 
 PREFIX  ?= /usr/local
 BINDIR  ?= $(PREFIX)/bin
@@ -18,6 +18,7 @@ endif
 
 CCFLAGS += -g -O2 -std=c++11
 CCFLAGS += -Wno-multichar
+
 CCFLAGS += -DLINK_PLATFORM_LINUX=1
 CCFLAGS += -Ilink/include
 
