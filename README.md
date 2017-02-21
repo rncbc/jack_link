@@ -9,9 +9,8 @@
 ## Prerequisites
 
    **jack_link** software prerequisites for building are a C++11 compiler
-   (_g++_), the [JACK](http://jackaudio.org) client C libraries and headers
-   (_libjack-devel_) and the [Asio C++ Library](http://think-async.com/Asio/)
-   for cross-platform network and low-level I/O (_asio-devel_).
+   (_g++_) and the [JACK](http://jackaudio.org) client C libraries and headers
+   (_libjack-devel_).
 
 
 ## Building

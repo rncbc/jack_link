@@ -21,6 +21,9 @@ CCFLAGS += -Wno-multichar
 CCFLAGS += -DLINK_PLATFORM_LINUX=1
 CCFLAGS += -Ilink/include
 
+CCFLAGS += -DASIO_STANDALONE=1
+CCFLAGS += -Ilink/modules/asio-standalone/asio/include
+
 LDFLAGS += -ljack -lpthread
 
 HEADERS  = jack_link.hpp
