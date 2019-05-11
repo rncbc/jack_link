@@ -1,7 +1,7 @@
 // jack_link.cpp
 //
 /****************************************************************************
-   Copyright (C) 2017-2018, rncbc aka Rui Nuno Capela. All rights reserved.
+   Copyright (C) 2017-2019, rncbc aka Rui Nuno Capela. All rights reserved.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -26,7 +26,7 @@
 
 
 jack_link::jack_link (void) :
-	m_link(120.0), m_client(NULL),
+	m_link(120.0), m_client(nullptr),
 	m_srate(44100.0), m_timebase(0), m_npeers(0),
 	m_tempo(120.0), m_tempo_req(0.0), m_quantum(4.0),
 	m_running(false), m_thread([this]{ worker_start(); })
@@ -61,11 +61,29 @@ int jack_link::process_callback (
 }
 
 
+void jack_link::on_shutdown ( void *user_data )
+{
+	jack_link *pJackLink = static_cast<jack_link *> (user_data);
+	pJackLink->on_shutdown();
+}
+
+
+void jack_link::on_shutdown (void)
+{
+	m_client = nullptr;
+
+	terminate();
+
+	::fclose(stdin);
+	std::cerr << std::endl;
+}
+
+
 void jack_link::timebase_callback (
 	jack_transport_state_t state, jack_nframes_t nframes,
-	jack_position_t *position, int new_pos, void *pvUserData )
+	jack_position_t *position, int new_pos, void *user_data )
 {
-	jack_link *pJackLink = static_cast<jack_link *> (pvUserData);
+	jack_link *pJackLink = static_cast<jack_link *> (user_data);
 	pJackLink->timebase_callback(state, nframes, position, new_pos);
 }
 
@@ -136,7 +154,7 @@ void jack_link::initialize (void)
 
 	jack_status_t status = JackFailure;
 	m_client = ::jack_client_open(jack_link::name(), JackNullOption, &status);
-	if (m_client == NULL) {
+	if (m_client == nullptr) {
 		std::cerr << "Could not initialize JACK client:" << std::endl;
 		if (status & JackFailure)
 			std::cerr << "Overall operation failed." << std::endl;
@@ -167,6 +185,7 @@ void jack_link::initialize (void)
 	m_srate = double(::jack_get_sample_rate(m_client));
 
 	::jack_set_process_callback(m_client, process_callback, this);
+	::jack_on_shutdown(m_client, on_shutdown, this);
 
 	::jack_activate(m_client);
 
@@ -183,14 +202,14 @@ void jack_link::terminate (void)
 	if (m_client) {
 		::jack_deactivate(m_client);
 		::jack_client_close(m_client);
-		m_client = NULL;
+		m_client = nullptr;
 	}
 }
 
 
 void jack_link::timebase_reset (void)
 {
-	if (m_client == NULL)
+	if (m_client == nullptr)
 		return;
 
 	if (m_timebase > 0) {
@@ -245,19 +264,19 @@ void jack_link::worker_run (void)
 		}
 
 		if (request > 0) {
-			auto timeline = m_link.captureAppTimeline();
+			auto session_state = m_link.captureAppSessionState();
 			const auto frame_time = ::jack_frame_time(m_client);
 			const auto host_time = std::chrono::microseconds(
 				llround(1.0e6 * frame_time / m_srate));
 			if (beats_per_minute > 0.0) {
 				m_tempo = beats_per_minute;
-				timeline.setTempo(m_tempo, host_time);
+				session_state.setTempo(m_tempo, host_time);
 			}
 			if (beats_per_bar > 0.0) {
 				m_quantum = beats_per_bar;
-				timeline.requestBeatAtTime(0, host_time, m_quantum);
+				session_state.requestBeatAtTime(0, host_time, m_quantum);
 			}
-			m_link.commitAppTimeline(timeline);
+			m_link.commitAppSessionState(session_state);
 		}
 	}
 }

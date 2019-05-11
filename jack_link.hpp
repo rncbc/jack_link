@@ -1,7 +1,7 @@
 // jack_link.hpp
 //
 /****************************************************************************
-   Copyright (C) 2017-2018, rncbc aka Rui Nuno Capela. All rights reserved.
+   Copyright (C) 2017-2019, rncbc aka Rui Nuno Capela. All rights reserved.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -64,11 +64,15 @@ protected:
 		jack_nframes_t nframes,
 		void *pvUserData);
 
+	static void on_shutdown(void *user_data);
+
+	void on_shutdown();
+
 	static void timebase_callback(
 		jack_transport_state_t state,
 		jack_nframes_t nframes,
 		jack_position_t *position,
-		int new_pos, void *pvUserData);
+		int new_pos, void *user_data);
 
 	void timebase_callback(
 		jack_transport_state_t state,
