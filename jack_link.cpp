@@ -29,6 +29,7 @@ jack_link::jack_link (void) :
 	m_link(120.0), m_client(nullptr),
 	m_srate(44100.0), m_timebase(0), m_npeers(0),
 	m_tempo(120.0), m_tempo_req(0.0), m_quantum(4.0),
+	m_playing(false), m_playing_req(false),
 	m_running(false), m_thread([this]{ worker_start(); })
 {
 	m_thread.detach();
@@ -145,12 +146,34 @@ void jack_link::tempo_callback ( const double tempo )
 }
 
 
+void jack_link::playing_callback ( const bool playing )
+{
+	std::lock_guard<std::mutex> lock(m_mutex);
+	std::cerr << "jack_link::playing_callback(" << playing << ")" << std::endl;
+	if (m_client) {
+		m_playing_req = true;
+		m_playing = playing;
+		if (m_playing)
+			::jack_transport_start(m_client);
+		else
+			::jack_transport_stop(m_client);
+	}
+	m_cond.notify_one();
+}
+
+
 void jack_link::initialize (void)
 {
 	::memset(&m_position, 0, sizeof(jack_position_t));
 
-	m_link.setNumPeersCallback([this](const std::size_t n) { peers_callback(n); });
-	m_link.setTempoCallback([this](const double bpm) { tempo_callback(bpm); });
+	m_link.setNumPeersCallback([this](const std::size_t n)
+		{ peers_callback(n); });
+	m_link.setTempoCallback([this](const double bpm)
+		{ tempo_callback(bpm); });
+	m_link.setStartStopCallback([this](const bool playing)
+		{ playing_callback(playing); });
+
+	m_link.enableStartStopSync(true);
 
 	jack_status_t status = JackFailure;
 	m_client = ::jack_client_open(jack_link::name(), JackNullOption, &status);
@@ -249,8 +272,22 @@ void jack_link::worker_run (void)
 
 		double beats_per_minute = 0.0;
 		double beats_per_bar = 0.0;
+		bool playing_req = false;
 
-		::jack_transport_query(m_client, &m_position);
+		const jack_transport_state_t state
+			= ::jack_transport_query(m_client, &m_position);
+		const bool playing
+			= (state == JackTransportRolling
+			|| state == JackTransportLooping);
+
+		if ((playing && !m_playing) || (!playing && m_playing)) {
+			if (m_playing_req) {
+				m_playing_req = false;
+			} else {
+				playing_req = true;
+				++request;
+			}
+		}
 
 		if (m_position.valid & JackPositionBBT) {
 			if (std::abs(m_tempo - m_position.beats_per_minute) > 0.01) {
@@ -268,6 +305,10 @@ void jack_link::worker_run (void)
 			const auto frame_time = ::jack_frame_time(m_client);
 			const auto host_time = std::chrono::microseconds(
 				llround(1.0e6 * frame_time / m_srate));
+			if (playing_req) {
+				m_playing = playing;
+				session_state.setIsPlaying(m_playing, host_time);
+			}
 			if (beats_per_minute > 0.0) {
 				m_tempo = beats_per_minute;
 				session_state.setTempo(m_tempo, host_time);

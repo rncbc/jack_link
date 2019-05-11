@@ -34,7 +34,7 @@
 #if defined(_VERSION)
 #define JACK_LINK_VERSION   JACK_LINK_QUOTE2(_VERSION)
 #else
-#define JACK_LINK_VERSION   JACK_LINK_QUOTE1(0.0.4)
+#define JACK_LINK_VERSION   JACK_LINK_QUOTE1(0.0.5)
 #endif
 
 #define _USE_MATH_DEFINES
@@ -82,6 +82,7 @@ protected:
 
 	void peers_callback(const std::size_t npeers);
 	void tempo_callback(const double tempo);
+	void playing_callback(const bool playing);
 
 	void initialize();
 	void terminate();
@@ -102,6 +103,7 @@ private:
 	std::size_t m_npeers;
 	double m_tempo, m_tempo_req;
 	double m_quantum;
+	bool m_playing, m_playing_req;
 	bool m_running;
 	std::thread m_thread;
 	std::mutex m_mutex;
