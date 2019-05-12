@@ -55,6 +55,36 @@ const char *jack_link::version (void)
 }
 
 
+std::size_t jack_link::npeers (void) const
+{
+	return m_npeers;
+}
+
+
+double jack_link::srate (void) const
+{
+	return m_srate;
+}
+
+
+double jack_link::tempo (void) const
+{
+	return m_tempo;
+}
+
+
+double jack_link::quantum (void) const
+{
+	return m_quantum;
+}
+
+
+bool jack_link::playing (void) const
+{
+	return m_playing;
+}
+
+
 int jack_link::process_callback (
 	jack_nframes_t /*nframes*/, void */*pvUserData*/ )
 {
@@ -109,9 +139,9 @@ void jack_link::timebase_callback (
 	const double bar = std::floor(beats / beats_per_bar);
 	const double beat = beats - bar * beats_per_bar;
 
-	const bool   valid = (m_position.valid & JackPositionBBT);
-	const double ticks_per_beat = (valid ? m_position.ticks_per_beat : 960.0);
-	const float  beat_type = (valid ? m_position.beat_type : 4.0f);
+	const bool   valid = (position->valid & JackPositionBBT);
+	const double ticks_per_beat = (valid ? position->ticks_per_beat : 960.0);
+	const float  beat_type = (valid ? position->beat_type : 4.0f);
 
 	position->valid = JackPositionBBT;
 	position->bar = int32_t(bar) + 1;
@@ -150,22 +180,15 @@ void jack_link::playing_callback ( const bool playing )
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	std::cerr << "jack_link::playing_callback(" << playing << ")" << std::endl;
-	if (m_client) {
-		m_playing_req = true;
-		m_playing = playing;
-		if (m_playing)
-			::jack_transport_start(m_client);
-		else
-			::jack_transport_stop(m_client);
-	}
+	m_playing_req = true;
+	m_playing = playing;
+	transport_reset();
 	m_cond.notify_one();
 }
 
 
 void jack_link::initialize (void)
 {
-	::memset(&m_position, 0, sizeof(jack_position_t));
-
 	m_link.setNumPeersCallback([this](const std::size_t n)
 		{ peers_callback(n); });
 	m_link.setTempoCallback([this](const double bpm)
@@ -247,6 +270,18 @@ void jack_link::timebase_reset (void)
 }
 
 
+void jack_link::transport_reset (void)
+{
+	if (m_client == nullptr)
+		return;
+
+	if (m_playing)
+		::jack_transport_start(m_client);
+	else
+		::jack_transport_stop(m_client);
+}
+
+
 void jack_link::worker_start (void)
 {
 	m_running = true;
@@ -274,11 +309,13 @@ void jack_link::worker_run (void)
 		double beats_per_bar = 0.0;
 		bool playing_req = false;
 
-		const jack_transport_state_t state
-			= ::jack_transport_query(m_client, &m_position);
+		jack_position_t position;
+		const jack_transport_state_t transport_state
+			= ::jack_transport_query(m_client, &position);
+
 		const bool playing
-			= (state == JackTransportRolling
-			|| state == JackTransportLooping);
+			= (transport_state == JackTransportRolling
+			|| transport_state == JackTransportLooping);
 
 		if ((playing && !m_playing) || (!playing && m_playing)) {
 			if (m_playing_req) {
@@ -289,13 +326,13 @@ void jack_link::worker_run (void)
 			}
 		}
 
-		if (m_position.valid & JackPositionBBT) {
-			if (std::abs(m_tempo - m_position.beats_per_minute) > 0.01) {
-				beats_per_minute = m_position.beats_per_minute;
+		if (position.valid & JackPositionBBT) {
+			if (std::abs(m_tempo - position.beats_per_minute) > 0.01) {
+				beats_per_minute = position.beats_per_minute;
 				++request;
 			}
-			if (std::abs(m_quantum - m_position.beats_per_bar) > 0.01) {
-				beats_per_bar = m_position.beats_per_bar;
+			if (std::abs(m_quantum - position.beats_per_bar) > 0.01) {
+				beats_per_bar = position.beats_per_bar;
 				++request;
 			}
 		}
@@ -357,12 +394,19 @@ int main ( int /*argc*/, char **/*argv*/ )
 	std::string line;
 	while (!std::cin.eof()) {
 		std::cout << app.name() << "> ";
-		getline(std::cin, line);
+		getline(std::cin >> std::ws, line);
 		std::transform(
 			line.begin(), line.end(),
 			line.begin(), ::tolower);
 		if (!line.compare("quit"))
 			break;
+		if (!line.compare("status")) {
+			std::cout << "npeers: "  << app.npeers()  << std::endl;
+			std::cout << "srate: "   << app.srate()   << std::endl;
+			std::cout << "tempo: "   << app.tempo()   << std::endl;
+			std::cout << "quantum: " << app.quantum() << std::endl;
+			std::cout << "playing: " << app.playing() << std::endl;
+		}
 	}
 
 	return 0;

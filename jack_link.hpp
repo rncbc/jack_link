@@ -58,6 +58,12 @@ public:
 	static const char *name();
 	static const char *version();
 
+	std::size_t npeers() const;
+	double srate() const;
+	double tempo() const;
+	double quantum() const;
+	bool playing() const;
+
 protected:
 
 	static int process_callback(
@@ -88,6 +94,7 @@ protected:
 	void terminate();
 
 	void timebase_reset();
+	void transport_reset();
 
 	void worker_start();
 	void worker_run();
@@ -97,7 +104,6 @@ private:
 
 	ableton::Link m_link;
 	jack_client_t *m_client;
-	jack_position_t m_position;
 	double m_srate;
 	unsigned long m_timebase;
 	std::size_t m_npeers;
