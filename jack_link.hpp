@@ -68,7 +68,7 @@ protected:
 
 	static int process_callback(
 		jack_nframes_t nframes,
-		void *pvUserData);
+		void *user_data);
 
 	static void on_shutdown(void *user_data);
 

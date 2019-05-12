@@ -86,7 +86,7 @@ bool jack_link::playing (void) const
 
 
 int jack_link::process_callback (
-	jack_nframes_t /*nframes*/, void */*pvUserData*/ )
+	jack_nframes_t /*nframes*/, void */*user_data*/ )
 {
 	return 0;
 }
@@ -101,6 +101,7 @@ void jack_link::on_shutdown ( void *user_data )
 
 void jack_link::on_shutdown (void)
 {
+	std::cerr << "jack_link::on_shutdown()" << std::endl;
 	m_client = nullptr;
 
 	terminate();
@@ -133,7 +134,7 @@ void jack_link::timebase_callback (
 		llround(1.0e6 * position->frame / position->frame_rate));
 
 	const double beats_per_minute = m_tempo;
-	const double beats_per_bar = std::max(m_quantum, 1.);
+	const double beats_per_bar = std::max(m_quantum, 1.0);
 
 	const double beats = beats_per_minute * time.count() / 60.0e6;
 	const double bar = std::floor(beats / beats_per_bar);
@@ -310,12 +311,12 @@ void jack_link::worker_run (void)
 		bool playing_req = false;
 
 		jack_position_t position;
-		const jack_transport_state_t transport_state
+		const jack_transport_state_t state
 			= ::jack_transport_query(m_client, &position);
 
 		const bool playing
-			= (transport_state == JackTransportRolling
-			|| transport_state == JackTransportLooping);
+			= (state == JackTransportRolling
+			|| state == JackTransportLooping);
 
 		if ((playing && !m_playing) || (!playing && m_playing)) {
 			if (m_playing_req) {
@@ -342,17 +343,18 @@ void jack_link::worker_run (void)
 			const auto frame_time = ::jack_frame_time(m_client);
 			const auto host_time = std::chrono::microseconds(
 				llround(1.0e6 * frame_time / m_srate));
-			if (playing_req) {
-				m_playing = playing;
-				session_state.setIsPlaying(m_playing, host_time);
-			}
 			if (beats_per_minute > 0.0) {
 				m_tempo = beats_per_minute;
 				session_state.setTempo(m_tempo, host_time);
 			}
 			if (beats_per_bar > 0.0) {
 				m_quantum = beats_per_bar;
-				session_state.requestBeatAtTime(0, host_time, m_quantum);
+				session_state.requestBeatAtTime(0.0, host_time, m_quantum);
+			}
+			if (playing_req) {
+				m_playing = playing;
+				session_state.setIsPlayingAndRequestBeatAtTime(
+					m_playing, host_time, 0.0, m_quantum);
 			}
 			m_link.commitAppSessionState(session_state);
 		}
@@ -394,7 +396,7 @@ int main ( int /*argc*/, char **/*argv*/ )
 	std::string line;
 	while (!std::cin.eof()) {
 		std::cout << app.name() << "> ";
-		getline(std::cin >> std::ws, line);
+		getline(std::cin, line);
 		std::transform(
 			line.begin(), line.end(),
 			line.begin(), ::tolower);
