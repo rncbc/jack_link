@@ -276,6 +276,19 @@ void jack_link::transport_reset (void)
 	if (m_client == nullptr)
 		return;
 
+	if (m_playing_req) {
+		auto session_state = m_link.captureAppSessionState();
+	#if 0
+		const auto frame_time = ::jack_frame_time(m_client);
+		const auto host_time = std::chrono::microseconds(
+			llround(1.0e6 * frame_time / m_srate));
+	#else
+		const auto host_time = m_link.clock().micros();
+	#endif
+		session_state.requestBeatAtTime(0.0, host_time, m_quantum);
+		m_link.commitAppSessionState(session_state);
+	}
+
 	if (m_playing)
 		::jack_transport_start(m_client);
 	else
@@ -340,9 +353,13 @@ void jack_link::worker_run (void)
 
 		if (request > 0) {
 			auto session_state = m_link.captureAppSessionState();
+		#if 0
 			const auto frame_time = ::jack_frame_time(m_client);
 			const auto host_time = std::chrono::microseconds(
 				llround(1.0e6 * frame_time / m_srate));
+		#else
+			const auto host_time = m_link.clock().micros();
+		#endif
 			if (beats_per_minute > 0.0) {
 				m_tempo = beats_per_minute;
 				session_state.setTempo(m_tempo, host_time);
