@@ -276,7 +276,7 @@ void jack_link::transport_reset (void)
 	if (m_client == nullptr)
 		return;
 
-	if (m_playing_req) {
+	if (m_playing_req && m_playing) {
 		auto session_state = m_link.captureAppSessionState();
 	#if 0
 		const auto frame_time = ::jack_frame_time(m_client);
@@ -286,6 +286,15 @@ void jack_link::transport_reset (void)
 		const auto host_time = m_link.clock().micros();
 	#endif
 		session_state.requestBeatAtTime(0.0, host_time, m_quantum);
+		const auto beat = session_state.beatAtTime(host_time, m_quantum);
+		std::cerr << "jack_link::transport_reset: beatAtTime: " << beat << std::endl;
+		if (beat < 0.0) {
+			jack_position_t position;
+			::jack_transport_query(m_client, &position);
+			if (position.valid & JackPositionBBT) {
+				// TODO...
+			}
+		}
 		m_link.commitAppSessionState(session_state);
 	}
 
