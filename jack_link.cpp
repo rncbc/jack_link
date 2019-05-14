@@ -92,22 +92,39 @@ int jack_link::process_callback (
 }
 
 
-void jack_link::on_shutdown ( void *user_data )
+int jack_link::sync_callback (
+	jack_transport_state_t state, jack_position_t *position, void *user_data )
 {
 	jack_link *pJackLink = static_cast<jack_link *> (user_data);
-	pJackLink->on_shutdown();
+	return pJackLink->sync_callback(state, position);
 }
 
 
-void jack_link::on_shutdown (void)
+int jack_link::sync_callback (
+	jack_transport_state_t state, jack_position_t */*position*/ )
 {
-	std::cerr << "jack_link::on_shutdown()" << std::endl;
-	m_client = nullptr;
+	bool ret = false;
 
-	terminate();
+	if (m_playing_req && m_playing && m_mutex.try_lock()) {
+		auto session_state = m_link.captureAudioSessionState();
+	#if 0
+		const auto frame_time = ::jack_frame_time(m_client);
+		const auto host_time = std::chrono::microseconds(
+			std::llround(1.0e6 * frame_time / m_srate));
+	#else
+		const auto host_time = m_link.clock().micros();
+	#endif
+		const auto beat
+			= session_state.beatAtTime(host_time, m_quantum);
+		if (beat >= 0.0) {
+			m_playing_req = false;
+			ret = true;
+		}
+		m_link.commitAudioSessionState(session_state);
+		m_mutex.unlock();
+	}
 
-	::fclose(stdin);
-	std::cerr << std::endl;
+	return (ret ? 0 : 1);
 }
 
 
@@ -130,13 +147,13 @@ void jack_link::timebase_callback (
 		m_mutex.unlock();
 	}
 
-	const auto time = std::chrono::microseconds(
-		llround(1.0e6 * position->frame / position->frame_rate));
+	const auto frame_time = std::chrono::microseconds(
+		std::llround(1.0e6 * position->frame / position->frame_rate));
 
 	const double beats_per_minute = m_tempo;
 	const double beats_per_bar = std::max(m_quantum, 1.0);
 
-	const double beats = beats_per_minute * time.count() / 60.0e6;
+	const double beats = beats_per_minute * frame_time.count() / 60.0e6;
 	const double bar = std::floor(beats / beats_per_bar);
 	const double beat = beats - bar * beats_per_bar;
 
@@ -154,6 +171,25 @@ void jack_link::timebase_callback (
 	position->beat_type = beat_type;
 
 	if (new_pos) ++m_timebase;
+}
+
+
+void jack_link::on_shutdown ( void *user_data )
+{
+	jack_link *pJackLink = static_cast<jack_link *> (user_data);
+	pJackLink->on_shutdown();
+}
+
+
+void jack_link::on_shutdown (void)
+{
+	std::cerr << "jack_link::on_shutdown()" << std::endl;
+	m_client = nullptr;
+
+	terminate();
+
+	::fclose(stdin);
+	std::cerr << std::endl;
 }
 
 
@@ -232,6 +268,7 @@ void jack_link::initialize (void)
 	m_srate = double(::jack_get_sample_rate(m_client));
 
 	::jack_set_process_callback(m_client, process_callback, this);
+	::jack_set_sync_callback(m_client, sync_callback, this);
 	::jack_on_shutdown(m_client, on_shutdown, this);
 
 	::jack_activate(m_client);
@@ -281,18 +318,27 @@ void jack_link::transport_reset (void)
 	#if 0
 		const auto frame_time = ::jack_frame_time(m_client);
 		const auto host_time = std::chrono::microseconds(
-			llround(1.0e6 * frame_time / m_srate));
+			std::llround(1.0e6 * frame_time / m_srate));
 	#else
 		const auto host_time = m_link.clock().micros();
 	#endif
-		session_state.requestBeatAtTime(0.0, host_time, m_quantum);
-		const auto beat = session_state.beatAtTime(host_time, m_quantum);
-		std::cerr << "jack_link::transport_reset: beatAtTime: " << beat << std::endl;
+		const auto beat
+			= session_state.beatAtTime(host_time, m_quantum);
 		if (beat < 0.0) {
 			jack_position_t position;
-			::jack_transport_query(m_client, &position);
-			if (position.valid & JackPositionBBT) {
-				// TODO...
+			const jack_transport_state_t state
+					= ::jack_transport_query(m_client, &position);
+			if (state == JackTransportStopped) {
+				// Advance-relocate at the nearest zero-beat frame..
+				const auto frame_time = std::chrono::microseconds(
+					std::llround(1.0e6 * position.frame / position.frame_rate));
+				const double beats_per_bar = std::max(m_quantum, 1.0);
+				const double beats = m_tempo * frame_time.count() / 60.0e6;
+				const double beat0
+					= beats + std::fmod(beats, beats_per_bar);
+				const jack_nframes_t frame0
+					= std::lrint(60.0 * position.frame_rate * beat0 / m_tempo);
+				::jack_transport_locate(m_client, frame0);
 			}
 		}
 		m_link.commitAppSessionState(session_state);
@@ -342,7 +388,7 @@ void jack_link::worker_run (void)
 
 		if ((playing && !m_playing) || (!playing && m_playing)) {
 			if (m_playing_req) {
-				m_playing_req = false;
+				m_playing_req = m_playing;
 			} else {
 				playing_req = true;
 				++request;
@@ -365,7 +411,7 @@ void jack_link::worker_run (void)
 		#if 0
 			const auto frame_time = ::jack_frame_time(m_client);
 			const auto host_time = std::chrono::microseconds(
-				llround(1.0e6 * frame_time / m_srate));
+				std::llround(1.0e6 * frame_time / m_srate));
 		#else
 			const auto host_time = m_link.clock().micros();
 		#endif
@@ -379,8 +425,14 @@ void jack_link::worker_run (void)
 			}
 			if (playing_req) {
 				m_playing = playing;
+				// Find the current frame beat fraction..
+				const auto frame_time = std::chrono::microseconds(
+					std::llround(1.0e6 * position.frame / position.frame_rate));
+				const double beats_per_bar = std::max(m_quantum, 1.0);
+				const double beats = m_tempo * frame_time.count() / 60.0e6;
+				const double beat = - std::fmod(beats, beats_per_bar);
 				session_state.setIsPlayingAndRequestBeatAtTime(
-					m_playing, host_time, 0.0, m_quantum);
+					m_playing, host_time, beat, m_quantum);
 			}
 			m_link.commitAppSessionState(session_state);
 		}
@@ -422,7 +474,7 @@ int main ( int /*argc*/, char **/*argv*/ )
 	std::string line;
 	while (!std::cin.eof()) {
 		std::cout << app.name() << "> ";
-		getline(std::cin, line);
+		std::getline(std::cin, line);
 		std::transform(
 			line.begin(), line.end(),
 			line.begin(), ::tolower);
