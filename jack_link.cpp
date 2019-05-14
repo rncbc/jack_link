@@ -101,11 +101,11 @@ int jack_link::sync_callback (
 
 
 int jack_link::sync_callback (
-	jack_transport_state_t state, jack_position_t */*position*/ )
+	jack_transport_state_t /*state*/, jack_position_t */*position*/ )
 {
-	bool ret = false;
+	bool ret = (m_playing_req && m_playing);
 
-	if (m_playing_req && m_playing && m_mutex.try_lock()) {
+	if (ret && m_mutex.try_lock()) {
 		auto session_state = m_link.captureAudioSessionState();
 	#if 0
 		const auto frame_time = ::jack_frame_time(m_client);
@@ -114,12 +114,8 @@ int jack_link::sync_callback (
 	#else
 		const auto host_time = m_link.clock().micros();
 	#endif
-		const auto beat
-			= session_state.beatAtTime(host_time, m_quantum);
-		if (beat >= 0.0) {
-			m_playing_req = false;
-			ret = true;
-		}
+		const auto beat = session_state.beatAtTime(host_time, m_quantum);
+		ret = (beat < 0.0);
 		m_link.commitAudioSessionState(session_state);
 		m_mutex.unlock();
 	}
@@ -322,14 +318,14 @@ void jack_link::transport_reset (void)
 	#else
 		const auto host_time = m_link.clock().micros();
 	#endif
-		const auto beat
-			= session_state.beatAtTime(host_time, m_quantum);
+		session_state.requestBeatAtTime(0.0, host_time, m_quantum);
+		const auto beat = session_state.beatAtTime(host_time, m_quantum);
 		if (beat < 0.0) {
 			jack_position_t position;
 			const jack_transport_state_t state
 					= ::jack_transport_query(m_client, &position);
 			if (state == JackTransportStopped) {
-				// Advance-relocate at the nearest zero-beat frame..
+				// Advance/relocate at the nearest zero-beat frame..
 				const auto frame_time = std::chrono::microseconds(
 					std::llround(1.0e6 * position.frame / position.frame_rate));
 				const double beats_per_bar = std::max(m_quantum, 1.0);
@@ -388,7 +384,7 @@ void jack_link::worker_run (void)
 
 		if ((playing && !m_playing) || (!playing && m_playing)) {
 			if (m_playing_req) {
-				m_playing_req = m_playing;
+				m_playing_req = false;
 			} else {
 				playing_req = true;
 				++request;
@@ -430,9 +426,9 @@ void jack_link::worker_run (void)
 					std::llround(1.0e6 * position.frame / position.frame_rate));
 				const double beats_per_bar = std::max(m_quantum, 1.0);
 				const double beats = m_tempo * frame_time.count() / 60.0e6;
-				const double beat = - std::fmod(beats, beats_per_bar);
+				const double beat0 = - std::fmod(beats, beats_per_bar);
 				session_state.setIsPlayingAndRequestBeatAtTime(
-					m_playing, host_time, beat, m_quantum);
+					m_playing, host_time, beat0, m_quantum);
 			}
 			m_link.commitAppSessionState(session_state);
 		}
