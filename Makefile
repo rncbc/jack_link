@@ -43,4 +43,7 @@ uninstall:	$(DESTDIR)$(BINDIR)/$(TARGET)
 	rm -vf $(DESTDIR)$(BINDIR)/$(TARGET)
 
 clean:
-	rm -vf $(TARGET) *.o
+	rm -vf *.o
+
+distclean:	clean
+	rm -vf $(TARGET)

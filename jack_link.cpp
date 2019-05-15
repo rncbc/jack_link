@@ -328,13 +328,18 @@ void jack_link::transport_reset (void)
 				// Advance/relocate at the nearest zero-beat frame..
 				const auto frame_time = std::chrono::microseconds(
 					std::llround(1.0e6 * position.frame / position.frame_rate));
-				const double beats_per_bar = std::max(m_quantum, 1.0);
-				const double beats = m_tempo * frame_time.count() / 60.0e6;
+				const double beats_per_bar
+					= std::max(m_quantum, 1.0);
+				const double beats
+					= m_tempo * frame_time.count() / 60.0e6;
 				const double beat0
-					= beats + std::fmod(beats, beats_per_bar);
-				const jack_nframes_t frame0
-					= std::lrint(60.0 * position.frame_rate * beat0 / m_tempo);
-				::jack_transport_locate(m_client, frame0);
+					= beats + beat + beats_per_bar
+					- std::fmod(beats, beats_per_bar);
+				if (beat0 > 0.0) {
+					const jack_nframes_t frame0
+						= std::lrint(60.0 * position.frame_rate * beat0 / m_tempo);
+					::jack_transport_locate(m_client, frame0);
+				}
 			}
 		}
 		m_link.commitAppSessionState(session_state);
@@ -424,9 +429,12 @@ void jack_link::worker_run (void)
 				// Find the current frame beat fraction..
 				const auto frame_time = std::chrono::microseconds(
 					std::llround(1.0e6 * position.frame / position.frame_rate));
-				const double beats_per_bar = std::max(m_quantum, 1.0);
-				const double beats = m_tempo * frame_time.count() / 60.0e6;
-				const double beat0 = - std::fmod(beats, beats_per_bar);
+				const double beats_per_bar
+					= std::max(m_quantum, 1.0);
+				const double beats
+					= m_tempo * frame_time.count() / 60.0e6;
+				const double beat0
+					= std::fmod(beats, beats_per_bar) - beats_per_bar;
 				session_state.setIsPlayingAndRequestBeatAtTime(
 					m_playing, host_time, beat0, m_quantum);
 			}
