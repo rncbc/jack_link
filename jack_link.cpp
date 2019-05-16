@@ -110,16 +110,17 @@ int jack_link::sync_callback (
 int jack_link::sync_callback (
 	jack_transport_state_t state, jack_position_t *pos )
 {
-	bool ret = (state != JackTransportStarting);
-	if (!ret && m_playing) {
+	bool ret = (m_playing_req && m_playing);
+
+	if (ret) {
 		auto session_state = m_link.captureAudioSessionState();
 		const auto host_time = m_link.clock().micros();
 		const auto beat = session_state.beatAtTime(host_time, m_quantum);
-		ret = (beat >= 0.0);
+		ret = (beat < 0.0);
 		m_link.commitAudioSessionState(session_state);
 	}
 
-	return ret;
+	return !ret;
 }
 
 
@@ -375,7 +376,9 @@ void jack_link::worker_run (void)
 		const jack_transport_state_t state
 			= ::jack_transport_query(m_client, &position);
 
-		const bool playing = (state != JackTransportStopped);
+		const bool playing
+			= (state == JackTransportRolling
+			|| state == JackTransportLooping);
 
 		if ((playing && !m_playing) || (!playing && m_playing)) {
 			if (m_playing_req) {
