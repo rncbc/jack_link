@@ -72,23 +72,23 @@ protected:
 
 	static int sync_callback(
 		jack_transport_state_t state,
-		jack_position_t *position,
+		jack_position_t *pos,
 		void *user_data);
 
 	int sync_callback(
 		jack_transport_state_t state,
-		jack_position_t *position);
+		jack_position_t *pos);
 
 	static void timebase_callback(
 		jack_transport_state_t state,
 		jack_nframes_t nframes,
-		jack_position_t *position,
+		jack_position_t *pos,
 		int new_pos, void *user_data);
 
 	void timebase_callback(
 		jack_transport_state_t state,
 		jack_nframes_t nframes,
-		jack_position_t *position,
+		jack_position_t *pos,
 		int new_pos);
 
 	static void on_shutdown(void *user_data);
