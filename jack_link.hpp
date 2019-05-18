@@ -105,6 +105,8 @@ protected:
 	void timebase_reset();
 	void transport_reset();
 
+	double position_beat(jack_position_t *pos) const;
+
 	void worker_start();
 	void worker_run();
 	void worker_stop();

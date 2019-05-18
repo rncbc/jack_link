@@ -114,11 +114,8 @@ int jack_link::sync_callback (
 		// Sync to current JACK transport frame-beat quantum...
 		auto session_state = m_link.captureAudioSessionState();
 		const auto host_time = m_link.clock().micros();
-		const double beats
-			= m_tempo * pos->frame / (60.0 * pos->frame_rate);
-		const double quantum = std::max(m_quantum, 1.0);
-		const double beat0 = std::fmod(beats, quantum) - quantum;
-		session_state.forceBeatAtTime(beat0, host_time, quantum);
+		const double beat = position_beat(pos);
+		session_state.forceBeatAtTime(beat, host_time, m_quantum);
 		m_link.commitAudioSessionState(session_state);
 	}
 
@@ -136,7 +133,7 @@ void jack_link::timebase_callback (
 
 
 void jack_link::timebase_callback (
-	jack_transport_state_t state, jack_nframes_t nframes,
+	jack_transport_state_t /*state*/, jack_nframes_t /*nframes*/,
 	jack_position_t *pos, int new_pos )
 {
 	if (m_tempo_req > 0.0 && m_mutex.try_lock()) {
@@ -318,11 +315,8 @@ void jack_link::transport_reset (void)
 			// Sync to current JACK transport frame-beat quantum...
 			auto session_state = m_link.captureAppSessionState();
 			const auto host_time = m_link.clock().micros();
-			const double beats
-				= m_tempo * pos.frame / (60.0 * pos.frame_rate);
-			const double quantum = std::max(m_quantum, 1.0);
-			const double beat0 = std::fmod(beats, quantum) - quantum;
-			session_state.forceBeatAtTime(beat0, host_time, quantum);
+			const double beat = position_beat(&pos);
+			session_state.forceBeatAtTime(beat, host_time, m_quantum);
 			m_link.commitAppSessionState(session_state);
 		}
 	}
@@ -332,6 +326,23 @@ void jack_link::transport_reset (void)
 		::jack_transport_start(m_client);
 	else
 		::jack_transport_stop(m_client);
+}
+
+
+double jack_link::position_beat ( jack_position_t *pos ) const
+{
+	if (pos->valid & JackPositionBBT) {
+		const double beats
+			= double(pos->beat - 1)
+			+ double(pos->tick) / double(pos->ticks_per_beat);
+		return beats - double(pos->beats_per_bar);
+	} else {
+		const double quantum
+			= std::max(m_quantum, 1.0);
+		const double beats
+			= m_tempo * pos->frame / (60.0 * pos->frame_rate);
+		return std::fmod(beats, quantum) - quantum;
+	}
 }
 
 
@@ -406,11 +417,8 @@ void jack_link::worker_run (void)
 				m_playing = playing;
 				// Sync to current JACK transport frame-beat quantum...
 				if (m_playing) {
-					const double beats
-						= m_tempo * pos.frame / (60.0 * pos.frame_rate);
-					const double quantum = std::max(m_quantum, 1.0);
-					const double beat0 = std::fmod(beats, quantum) - quantum;
-					session_state.forceBeatAtTime(beat0, host_time, quantum);
+					const double beat = position_beat(&pos);
+					session_state.forceBeatAtTime(beat, host_time, m_quantum);
 				}
 				// Start/stop playing on Link...
 				session_state.setIsPlaying(m_playing, host_time);
@@ -433,7 +441,7 @@ void jack_link::worker_stop (void)
 
 #include <csignal>
 
-void sig_handler ( int sig_no )
+void sig_handler ( int /*sig_no*/ )
 {
 	::fclose(stdin);
 	std::cerr << std::endl;
