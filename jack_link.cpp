@@ -23,6 +23,9 @@
 
 #include <iostream>
 #include <string>
+#include <algorithm>
+#include <cctype>
+#include <csignal>
 
 
 jack_link::jack_link (void) :
@@ -74,15 +77,33 @@ double jack_link::srate (void) const
 }
 
 
+double jack_link::quantum (void) const
+{
+	return m_quantum;
+}
+
+
+void jack_link::tempo ( double tempo )
+{
+	auto session_state = m_link.captureAppSessionState();
+	const auto host_time = m_link.clock().micros();
+	session_state.setTempo(tempo, host_time);
+	m_link.commitAppSessionState(session_state);
+}
+
+
 double jack_link::tempo (void) const
 {
 	return m_tempo;
 }
 
 
-double jack_link::quantum (void) const
+void jack_link::playing ( bool playing )
 {
-	return m_quantum;
+	auto session_state = m_link.captureAppSessionState();
+	const auto host_time = m_link.clock().micros();
+	session_state.setIsPlaying(playing, host_time);
+	m_link.commitAppSessionState(session_state);
 }
 
 
@@ -439,8 +460,6 @@ void jack_link::worker_stop (void)
 }
 
 
-#include <csignal>
-
 void sig_handler ( int /*sig_no*/ )
 {
 	::fclose(stdin);
@@ -448,7 +467,21 @@ void sig_handler ( int /*sig_no*/ )
 }
 
 
-#include <cctype>
+void trim_ws ( std::string& s )
+{
+	const char *ws = " \t\n\r";
+	const std::string::size_type first
+		= s.find_first_not_of(ws);
+	if (first != std::string::npos)
+		s.erase(0, first);
+	const std::string::size_type last
+		= s.find_last_not_of(ws);
+	if (last != std::string::npos)
+		s.erase(last + 1);
+	else
+		s.clear();
+}
+
 
 int main ( int /*argc*/, char **/*argv*/ )
 {
@@ -460,15 +493,35 @@ int main ( int /*argc*/, char **/*argv*/ )
 
 	jack_link app;
 
-	std::string line;
+	std::string line, arg;
 	while (!std::cin.eof()) {
 		std::cout << app.name() << "> ";
 		std::getline(std::cin, line);
+		trim_ws(line);
 		std::transform(
 			line.begin(), line.end(),
 			line.begin(), ::tolower);
+		arg.clear();
+		const std::string::size_type pos
+			= line.find_first_of(' ');
+		if (pos != std::string::npos) {
+			arg = line.substr(pos + 1);
+			line.erase(pos);
+			trim_ws(arg);
+		}
 		if (!line.compare("quit"))
 			break;
+		if (!line.compare("start"))
+			app.playing(true);
+		else
+		if (!line.compare("stop"))
+			app.playing(false);
+		else
+		if (!line.compare("tempo")) {
+			try { app.tempo(std::stod(arg)); }
+			catch (...) { std::cout << "tempo: " << app.tempo() << std::endl; }
+		}
+		else
 		if (!line.compare("status")) {
 			std::cout << "npeers: "  << app.npeers()  << std::endl;
 			std::cout << "srate: "   << app.srate()   << std::endl;
@@ -476,6 +529,15 @@ int main ( int /*argc*/, char **/*argv*/ )
 			std::cout << "quantum: " << app.quantum() << std::endl;
 			std::cout << "playing: " << app.playing() << std::endl;
 		}
+		else
+		if (!line.compare("help")) {
+			std::cout << "help | start | stop";
+			std::cout << " | status | tempo [bpm]";
+			std::cout << " | quit" << std::endl;
+		}
+		else
+		if (!line.empty())
+			std::cout << "?Invalid command." << std::endl;
 	}
 
 	return 0;

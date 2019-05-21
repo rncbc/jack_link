@@ -34,7 +34,7 @@
 #if defined(_VERSION)
 #define JACK_LINK_VERSION   JACK_LINK_QUOTE2(_VERSION)
 #else
-#define JACK_LINK_VERSION   JACK_LINK_QUOTE1(0.0.6)
+#define JACK_LINK_VERSION   JACK_LINK_QUOTE1(0.0.7)
 #endif
 
 #define _USE_MATH_DEFINES
@@ -60,8 +60,12 @@ public:
 
 	std::size_t npeers() const;
 	double srate() const;
-	double tempo() const;
 	double quantum() const;
+
+	void tempo(double tempo);
+	double tempo() const;
+
+	void playing(bool playing);
 	bool playing() const;
 
 protected:
