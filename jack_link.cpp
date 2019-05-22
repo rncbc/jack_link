@@ -515,7 +515,7 @@ int main ( int /*argc*/, char **/*argv*/ )
 			line.erase(pos);
 			trim_ws(arg);
 		}
-		if (!line.compare("quit"))
+		if (!line.compare("quit") || !line.compare("exit"))
 			break;
 		if (!line.compare("start"))
 			app.playing(true);
@@ -524,10 +524,10 @@ int main ( int /*argc*/, char **/*argv*/ )
 			app.playing(false);
 		else
 		if (!line.compare("tempo")) {
-			double tempo = 0.0;
-			std::istringstream(arg) >> tempo;
-			if (tempo > 0.0)
-				app.tempo(tempo);
+			double bpm = 0.0;
+			std::istringstream(arg) >> bpm;
+			if (bpm > 0.0)
+				app.tempo(bpm);
 			else
 				std::cout << "tempo: " << app.tempo() << std::endl;
 		}
@@ -543,7 +543,7 @@ int main ( int /*argc*/, char **/*argv*/ )
 		if (!line.compare("help")) {
 			std::cout << "help | start | stop";
 			std::cout << " | status | tempo [bpm]";
-			std::cout << " | quit" << std::endl;
+			std::cout << " | quit | exit" << std::endl;
 		}
 		else
 		if (!line.empty())
