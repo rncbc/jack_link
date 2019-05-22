@@ -23,6 +23,7 @@
 
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <algorithm>
 #include <cctype>
 #include <csignal>
@@ -431,7 +432,11 @@ void jack_link::worker_run (void)
 			}
 			if (beats_per_bar > 0.0) {
 				m_quantum = beats_per_bar;
-				session_state.requestBeatAtTime(0.0, host_time, m_quantum);
+				// Sync to current JACK transport frame-beat quantum...
+				if (m_playing && !playing_req) {
+					const double beat = position_beat(&pos);
+					session_state.forceBeatAtTime(beat, host_time, m_quantum);
+				}
 			}
 			if (playing_req) {
 				m_playing_req = true;
@@ -494,6 +499,7 @@ int main ( int /*argc*/, char **/*argv*/ )
 	jack_link app;
 
 	std::string line, arg;
+
 	while (!std::cin.eof()) {
 		std::cout << app.name() << "> ";
 		std::getline(std::cin, line);
@@ -518,8 +524,12 @@ int main ( int /*argc*/, char **/*argv*/ )
 			app.playing(false);
 		else
 		if (!line.compare("tempo")) {
-			try { app.tempo(std::stod(arg)); }
-			catch (...) { std::cout << "tempo: " << app.tempo() << std::endl; }
+			double tempo = 0.0;
+			std::istringstream(arg) >> tempo;
+			if (tempo > 0.0)
+				app.tempo(tempo);
+			else
+				std::cout << "tempo: " << app.tempo() << std::endl;
 		}
 		else
 		if (!line.compare("status")) {
