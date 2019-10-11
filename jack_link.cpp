@@ -86,10 +86,17 @@ double jack_link::quantum (void) const
 
 void jack_link::tempo ( double tempo )
 {
-	auto session_state = m_link.captureAppSessionState();
-	const auto host_time = m_link.clock().micros();
-	session_state.setTempo(tempo, host_time);
-	m_link.commitAppSessionState(session_state);
+	if (m_npeers > 0) {
+		auto session_state = m_link.captureAppSessionState();
+		const auto host_time = m_link.clock().micros();
+		session_state.setTempo(tempo, host_time);
+		m_link.commitAppSessionState(session_state);
+	} else {
+		std::lock_guard<std::mutex> lock(m_mutex);
+		m_tempo_req = tempo;
+		timebase_reset();
+		m_cond.notify_one();
+	}
 }
 
 
@@ -101,10 +108,18 @@ double jack_link::tempo (void) const
 
 void jack_link::playing ( bool playing )
 {
-	auto session_state = m_link.captureAppSessionState();
-	const auto host_time = m_link.clock().micros();
-	session_state.setIsPlaying(playing, host_time);
-	m_link.commitAppSessionState(session_state);
+	if (m_npeers > 0) {
+		auto session_state = m_link.captureAppSessionState();
+		const auto host_time = m_link.clock().micros();
+		session_state.setIsPlaying(playing, host_time);
+		m_link.commitAppSessionState(session_state);
+	} else {
+		std::lock_guard<std::mutex> lock(m_mutex);
+		m_playing_req = true;
+		m_playing = playing;
+		transport_reset();
+		m_cond.notify_one();
+	}
 }
 
 
@@ -290,6 +305,8 @@ void jack_link::initialize (void)
 	::jack_activate(m_client);
 
 	m_link.enable(true);
+
+	timebase_reset();
 }
 
 
@@ -317,10 +334,8 @@ void jack_link::timebase_reset (void)
 		m_timebase = 0;
 	}
 
-	if (m_npeers > 0) {
-		::jack_set_timebase_callback(
-			m_client, 0, jack_link::timebase_callback, this);
-	}
+	::jack_set_timebase_callback(
+		m_client, 0, jack_link::timebase_callback, this);
 }
 
 
@@ -329,7 +344,7 @@ void jack_link::transport_reset (void)
 	if (m_client == nullptr)
 		return;
 
-	if (m_playing_req && m_playing) {
+	if (m_playing_req && m_playing && m_npeers > 0) {
 		jack_position_t pos;
 		const jack_transport_state_t state
 			= ::jack_transport_query(m_client, &pos);
