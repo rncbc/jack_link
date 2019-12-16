@@ -58,6 +58,8 @@ public:
 	static const char *name();
 	static const char *version();
 
+	bool active() const;
+
 	std::size_t npeers() const;
 	double srate() const;
 	double quantum() const;

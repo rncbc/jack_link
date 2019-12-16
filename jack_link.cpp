@@ -45,6 +45,8 @@ jack_link::jack_link (void) :
 	m_link.setStartStopCallback([this](const bool playing)
 		{ playing_callback(playing); });
 
+	m_link.enableStartStopSync(true);
+
 	initialize();
 }
 
@@ -63,6 +65,12 @@ const char *jack_link::name (void)
 const char *jack_link::version (void)
 {
 	return JACK_LINK_VERSION;
+}
+
+
+bool jack_link::active (void) const
+{
+	return (m_client != nullptr);
 }
 
 
@@ -264,8 +272,6 @@ void jack_link::playing_callback ( const bool playing )
 
 void jack_link::initialize (void)
 {
-	m_link.enableStartStopSync(true);
-
 	jack_status_t status = JackFailure;
 	m_client = ::jack_client_open(jack_link::name(), JackNullOption, &status);
 	if (m_client == nullptr) {
@@ -293,7 +299,8 @@ void jack_link::initialize (void)
 		if (status & JackVersionError)
 			std::cerr << "Client protocol version mismatch." << std::endl;
 		std::cerr << std::endl;
-		std::terminate();
+	//	std::terminate();
+		return;
 	};
 
 	m_srate = double(::jack_get_sample_rate(m_client));
@@ -515,7 +522,7 @@ int main ( int /*argc*/, char **/*argv*/ )
 
 	std::string line, arg;
 
-	while (!std::cin.eof()) {
+	while (!std::cin.eof() && app.active()) {
 		std::cout << app.name() << "> ";
 		std::getline(std::cin, line);
 		trim_ws(line);
