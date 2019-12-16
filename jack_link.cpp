@@ -275,29 +275,32 @@ void jack_link::initialize (void)
 	jack_status_t status = JackFailure;
 	m_client = ::jack_client_open(jack_link::name(), JackNullOption, &status);
 	if (m_client == nullptr) {
-		std::cerr << "Could not initialize JACK client:" << std::endl;
+		std::stringstream ss;
+		ss << jack_link::name() << ':' << ' ';
+		const std::string& s = ss.str();
+		std::cerr << s << "Could not initialize JACK client." << std::endl;
 		if (status & JackFailure)
-			std::cerr << "Overall operation failed." << std::endl;
+			std::cerr << s << "Overall operation failed." << std::endl;
 		if (status & JackInvalidOption)
-			std::cerr << "Invalid or unsupported option." << std::endl;
+			std::cerr << s << "Invalid or unsupported option." << std::endl;
 		if (status & JackNameNotUnique)
-			std::cerr << "Client name not unique." << std::endl;
+			std::cerr << s << "Client name not unique." << std::endl;
 		if (status & JackServerStarted)
-			std::cerr << "Server is started." << std::endl;
+			std::cerr << s << "Server is started." << std::endl;
 		if (status & JackServerFailed)
-			std::cerr << "Unable to connect to server." << std::endl;
+			std::cerr << s << "Unable to connect to server." << std::endl;
 		if (status & JackServerError)
-			std::cerr << "Server communication error." << std::endl;
+			std::cerr << s << "Server communication error." << std::endl;
 		if (status & JackNoSuchClient)
-			std::cerr << "Client does not exist." << std::endl;
+			std::cerr << s << "Client does not exist." << std::endl;
 		if (status & JackLoadFailure)
-			std::cerr << "Unable to load internal client." << std::endl;
+			std::cerr << s << "Unable to load internal client." << std::endl;
 		if (status & JackInitFailure)
-			std::cerr << "Unable to initialize client." << std::endl;
+			std::cerr << s << "Unable to initialize client." << std::endl;
 		if (status & JackShmFailure)
-			std::cerr << "Unable to access shared memory." << std::endl;
+			std::cerr << s << "Unable to access shared memory." << std::endl;
 		if (status & JackVersionError)
-			std::cerr << "Client protocol version mismatch." << std::endl;
+			std::cerr << s << "Client protocol version mismatch." << std::endl;
 		std::cerr << std::endl;
 	//	std::terminate();
 		return;
