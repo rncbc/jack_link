@@ -1,4 +1,4 @@
-NAME    ?= jack_link
+NAME     = jack_link
 
 VERSION ?= $(shell \
 	git describe --tags --dirty --abbrev=6 2>/dev/null \
