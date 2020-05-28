@@ -16,8 +16,8 @@
 ## Building
 
    **jack_link** relies on [link](https://github.com/Ableton/link) as a Git 
-   submodule, so after the main [jack_link](https://github.com/rncbc/jack_link)
-   repository is cloned, one needs to setup the working tree as follows:
+   submodule on the main [jack_link](https://github.com/rncbc/jack_link)
+   repository, so one needs to setup the working tree as follows:
 
      git clone --recursive https://github.com/rncbc/jack_link
      cd jack_link
@@ -43,4 +43,4 @@
 
 ## Copyright
 
-   Copyright (C) 2017-2019, rncbc aka Rui Nuno Capela. All rights reserved.
+   Copyright (C) 2017-2020, rncbc aka Rui Nuno Capela. All rights reserved.
