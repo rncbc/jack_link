@@ -16,6 +16,14 @@ ifneq ($(VERSION),)
 CCFLAGS += -D_VERSION="$(VERSION)"
 endif
 
+LINK_VERSION = $(shell cd link && \
+	git describe --tags --dirty --abbrev=6 2>/dev/null \
+	| sed 's/^[^0-9]\+//;s/-g/git./;s/[_|-]\+/./g')
+
+ifneq ($(LINK_VERSION),)
+CCFLAGS += -D_LINK_VERSION="$(LINK_VERSION)"
+endif
+
 CCFLAGS += -g -O2 -std=c++11
 CCFLAGS += -Wno-multichar
 

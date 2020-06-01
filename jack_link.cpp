@@ -64,7 +64,7 @@ const char *jack_link::name (void)
 
 const char *jack_link::version (void)
 {
-	return JACK_LINK_VERSION;
+	return JACK_LINK_VERSION " (Link v" ABLETON_LINK_VERSION ")";
 }
 
 

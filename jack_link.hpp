@@ -22,19 +22,25 @@
 #ifndef __jack_link_hpp
 #define __jack_link_hpp
 
-#define JACK_LINK_QUOTE1(x) #x
-#define JACK_LINK_QUOTE2(x) JACK_LINK_QUOTE1(x)
+#define JACK_LINK_QUOTE1(x)  #x
+#define JACK_LINK_QUOTE2(x)  JACK_LINK_QUOTE1(x)
 
 #if defined(_NAME)
-#define JACK_LINK_NAME      JACK_LINK_QUOTE2(_NAME)
+#define JACK_LINK_NAME       JACK_LINK_QUOTE2(_NAME)
 #else
-#define JACK_LINK_NAME      JACK_LINK_QUOTE1(jack_link)
+#define JACK_LINK_NAME       JACK_LINK_QUOTE1(jack_link)
 #endif
 
 #if defined(_VERSION)
-#define JACK_LINK_VERSION   JACK_LINK_QUOTE2(_VERSION)
+#define JACK_LINK_VERSION    JACK_LINK_QUOTE2(_VERSION)
 #else
-#define JACK_LINK_VERSION   JACK_LINK_QUOTE1(0.1.2)
+#define JACK_LINK_VERSION    JACK_LINK_QUOTE1(0.1.3)
+#endif
+
+#if defined(_LINK_VERSION)
+#define ABLETON_LINK_VERSION JACK_LINK_QUOTE2(_LINK_VERSION)
+#else
+#define ABLETON_LINK_VERSION JACK_LINK_QUOTE1(3.0.2)
 #endif
 
 #define _USE_MATH_DEFINES
@@ -57,6 +63,8 @@ public:
 
 	static const char *name();
 	static const char *version();
+
+	static const char *link_version();
 
 	bool active() const;
 
