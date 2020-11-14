@@ -27,7 +27,23 @@ endif
 CCFLAGS += -g -O2 -std=c++11
 CCFLAGS += -Wno-multichar
 
+#https://stackoverflow.com/questions/714100/os-detecting-makefile
+ifeq ($(OS),Windows_NT) 
+    DETECTED_OS := Windows
+else
+    DETECTED_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
+endif
+
+ifeq ($(DETECTED_OS), Linux)
 CCFLAGS += -DLINK_PLATFORM_LINUX=1
+else
+ifeq ($(DETECTED_OS), Darwin)
+CCFLAGS += -DLINK_PLATFORM_MACOSX=1
+else
+CCFLAGS += -DLINK_PLATFORM_WINDOWS=1
+endif
+endif
+
 CCFLAGS += -Ilink/include
 
 CCFLAGS += -DASIO_STANDALONE=1
