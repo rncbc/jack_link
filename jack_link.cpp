@@ -204,7 +204,7 @@ void jack_link::timebase_callback (
 	pos->valid = JackPositionBBT;
 	pos->bar = int32_t(bar) + 1;
 	pos->beat = int32_t(beat) + 1;
-	pos->tick = int32_t(ticks_per_beat * (beat - floor(beat)));
+	pos->tick = int32_t(ticks_per_beat * (beat - std::floor(beat)));
 	pos->beats_per_bar = float(beats_per_bar);
 	pos->ticks_per_beat = ticks_per_beat;
 	pos->beats_per_minute = beats_per_minute;

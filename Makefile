@@ -29,9 +29,9 @@ CCFLAGS += -Wno-multichar
 
 #https://stackoverflow.com/questions/714100/os-detecting-makefile
 ifeq ($(OS),Windows_NT) 
-    DETECTED_OS := Windows
+DETECTED_OS := Windows
 else
-    DETECTED_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
+DETECTED_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
 endif
 
 ifeq ($(DETECTED_OS), Linux)
