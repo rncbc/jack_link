@@ -27,7 +27,11 @@
 
      ./jack_link
 
-   To quit, enter `quit` on the `jack_link>` prompt:
+   To show available commands, enter `help` on the `jack_link>` prompt:
+
+     jack_link> help
+
+   To quit, enter `quit` or `exit` (or just press `Ctrl+D`):
 
      jack_link> quit
 
@@ -43,4 +47,4 @@
 
 ## Copyright
 
-   Copyright (C) 2017-2020, rncbc aka Rui Nuno Capela. All rights reserved.
+   Copyright (C) 2017-2021, rncbc aka Rui Nuno Capela. All rights reserved.
