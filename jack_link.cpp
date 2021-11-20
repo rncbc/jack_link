@@ -34,10 +34,8 @@ jack_link::jack_link (void) :
 	m_srate(44100.0), m_timebase(0), m_npeers(0),
 	m_tempo(120.0), m_tempo_req(0.0), m_quantum(4.0),
 	m_playing(false), m_playing_req(false),
-	m_running(false), m_thread([this]{ worker_start(); })
+	m_running(false), m_thread(nullptr)
 {
-	m_thread.detach();
-
 	m_link.setNumPeersCallback([this](const std::size_t npeers)
 		{ peers_callback(npeers); });
 	m_link.setTempoCallback([this](const double tempo)
@@ -272,6 +270,9 @@ void jack_link::playing_callback ( const bool playing )
 
 void jack_link::initialize (void)
 {
+	m_thread = new std::thread([this]{ worker_start(); });
+//	m_thread->detach();
+
 	jack_status_t status = JackFailure;
 	m_client = ::jack_client_open(jack_link::name(), JackNullOption, &status);
 	if (m_client == nullptr) {
@@ -323,6 +324,12 @@ void jack_link::initialize (void)
 void jack_link::terminate (void)
 {
 	worker_stop();
+
+	if (m_thread) {
+		m_thread->join();
+		delete m_thread;
+		m_thread = nullptr;
+	}
 
 	m_link.enable(false);
 
@@ -395,13 +402,14 @@ double jack_link::position_beat ( jack_position_t *pos ) const
 
 void jack_link::worker_start (void)
 {
-	m_running = true;
+	std::unique_lock<std::mutex> lock(m_mutex);
 
 	std::cout << jack_link::name() << " v" << jack_link::version() << std::endl; 
 	std::cout << jack_link::name() << ": started..." << std::endl; 
 
+	m_running = true;
+
 	while (m_running) {
-		std::unique_lock<std::mutex> lock(m_mutex);
 		worker_run();
 		m_cond.wait_for(lock, std::chrono::milliseconds(100));
 	}

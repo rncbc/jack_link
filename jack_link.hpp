@@ -34,7 +34,7 @@
 #if defined(_VERSION)
 #define JACK_LINK_VERSION    JACK_LINK_QUOTE2(_VERSION)
 #else
-#define JACK_LINK_VERSION    JACK_LINK_QUOTE1(0.1.5)
+#define JACK_LINK_VERSION    JACK_LINK_QUOTE1(0.1.6)
 #endif
 
 #if defined(_LINK_VERSION)
@@ -136,7 +136,7 @@ private:
 	double m_quantum;
 	bool m_playing, m_playing_req;
 	bool m_running;
-	std::thread m_thread;
+	std::thread *m_thread;
 	std::mutex m_mutex;
 	std::condition_variable m_cond;
 };
