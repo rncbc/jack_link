@@ -570,7 +570,8 @@ int main ( int /*argc*/, char **/*argv*/ )
 			std::cout << "srate: "   << app.srate()   << std::endl;
 			std::cout << "tempo: "   << app.tempo()   << std::endl;
 			std::cout << "quantum: " << app.quantum() << std::endl;
-			std::cout << "playing: " << app.playing() << std::endl;
+			std::cout << "playing: " <<
+				(app.playing() ? "started" : "stopped") << std::endl;
 		}
 		else
 		if (!line.compare("help")) {
