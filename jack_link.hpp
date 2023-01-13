@@ -1,7 +1,7 @@
 // jack_link.hpp
 //
 /****************************************************************************
-   Copyright (C) 2017-2022, rncbc aka Rui Nuno Capela. All rights reserved.
+   Copyright (C) 2017-2023, rncbc aka Rui Nuno Capela. All rights reserved.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -34,13 +34,13 @@
 #if defined(_VERSION)
 #define JACK_LINK_VERSION    JACK_LINK_QUOTE2(_VERSION)
 #else
-#define JACK_LINK_VERSION    JACK_LINK_QUOTE1(0.1.7)
+#define JACK_LINK_VERSION    JACK_LINK_QUOTE1(0.1.8)
 #endif
 
 #if defined(_LINK_VERSION)
 #define ABLETON_LINK_VERSION JACK_LINK_QUOTE2(_LINK_VERSION)
 #else
-#define ABLETON_LINK_VERSION JACK_LINK_QUOTE1(3.0.5)
+#define ABLETON_LINK_VERSION JACK_LINK_QUOTE1(3.0.6)
 #endif
 
 #define _USE_MATH_DEFINES

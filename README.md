@@ -47,4 +47,4 @@
 
 ## Copyright
 
-   Copyright (C) 2017-2022, rncbc aka Rui Nuno Capela. All rights reserved.
+   Copyright (C) 2017-2023, rncbc aka Rui Nuno Capela. All rights reserved.
