@@ -51,8 +51,8 @@ CCFLAGS += -Ilink/modules/asio-standalone/asio/include
 
 LDFLAGS += -ljack -lpthread
 
-HEADERS  = jack_link.hpp
-SOURCES  = jack_link.cpp
+HEADERS  = jack_link.hpp jack_link_log.hpp
+SOURCES  = jack_link.cpp jack_link_log.cpp
 
 all:	$(TARGET)
 

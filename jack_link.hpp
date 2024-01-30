@@ -1,7 +1,7 @@
 // jack_link.hpp
 //
 /****************************************************************************
-   Copyright (C) 2017-2023, rncbc aka Rui Nuno Capela. All rights reserved.
+   Copyright (C) 2017-2024, rncbc aka Rui Nuno Capela. All rights reserved.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -19,8 +19,7 @@
 
 *****************************************************************************/
 
-#ifndef __jack_link_hpp
-#define __jack_link_hpp
+#pragma once
 
 #define JACK_LINK_QUOTE1(x)  #x
 #define JACK_LINK_QUOTE2(x)  JACK_LINK_QUOTE1(x)
@@ -34,7 +33,7 @@
 #if defined(_VERSION)
 #define JACK_LINK_VERSION    JACK_LINK_QUOTE2(_VERSION)
 #else
-#define JACK_LINK_VERSION    JACK_LINK_QUOTE1(0.1.9)
+#define JACK_LINK_VERSION    JACK_LINK_QUOTE1(0.2.0)
 #endif
 
 #if defined(_LINK_VERSION)
@@ -43,12 +42,14 @@
 #define ABLETON_LINK_VERSION JACK_LINK_QUOTE1(3.1.0)
 #endif
 
+
 #define _USE_MATH_DEFINES
 
 #include <ableton/Link.hpp>
 
 #include <jack/jack.h>
 
+#include <string>
 #include <chrono>
 #include <mutex>
 #include <thread>
@@ -58,13 +59,13 @@ class jack_link
 {
 public:
 
-	jack_link();
+	jack_link(const std::string& name);
 	~jack_link();
 
-	static const char *name();
-	static const char *version();
+	const std::string& name() const;
 
-	static const char *link_version();
+	void initialize();
+	void terminate();
 
 	bool active() const;
 
@@ -113,9 +114,6 @@ protected:
 	void tempo_callback(const double tempo);
 	void playing_callback(const bool playing);
 
-	void initialize();
-	void terminate();
-
 	void timebase_reset();
 	void transport_reset();
 
@@ -127,6 +125,7 @@ protected:
 
 private:
 
+	std::string m_name;
 	ableton::Link m_link;
 	jack_client_t *m_client;
 	double m_srate;
@@ -141,7 +140,5 @@ private:
 	std::condition_variable m_cond;
 };
 
-
-#endif //__jack_link_hpp
 
 // end of jack_link.hpp

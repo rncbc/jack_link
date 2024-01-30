@@ -1,7 +1,7 @@
 // jack_link.cpp
 //
 /****************************************************************************
-   Copyright (C) 2017-2023, rncbc aka Rui Nuno Capela. All rights reserved.
+   Copyright (C) 2017-2024, rncbc aka Rui Nuno Capela. All rights reserved.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -21,6 +21,8 @@
 
 #include "jack_link.hpp"
 
+#include "jack_link_log.hpp"
+
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -29,8 +31,8 @@
 #include <csignal>
 
 
-jack_link::jack_link (void) :
-	m_link(120.0), m_client(nullptr),
+jack_link::jack_link ( const std::string& name ) :
+	m_name(name), m_link(120.0), m_client(nullptr),
 	m_srate(44100.0), m_timebase(0), m_npeers(0),
 	m_tempo(120.0), m_tempo_req(0.0), m_quantum(4.0),
 	m_playing(false), m_playing_req(false),
@@ -55,14 +57,9 @@ jack_link::~jack_link (void)
 }
 
 
-const char *jack_link::name (void)
+const std::string& jack_link::name (void) const
 {
-	return JACK_LINK_NAME;
-}
-
-const char *jack_link::version (void)
-{
-	return JACK_LINK_VERSION " (Link v" ABLETON_LINK_VERSION ")";
+	return m_name;
 }
 
 
@@ -221,7 +218,8 @@ void jack_link::on_shutdown ( void *user_data )
 
 void jack_link::on_shutdown (void)
 {
-	std::cerr << "jack_link::on_shutdown()" << std::endl;
+	jack_link_log("jack_link::on_shutdown()");
+
 	m_client = nullptr;
 
 	terminate();
@@ -234,7 +232,7 @@ void jack_link::on_shutdown (void)
 void jack_link::peers_callback ( const std::size_t npeers )
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::cerr << "jack_link::peers_callback(" << npeers << ")" << std::endl;
+	jack_link_log("jack_link::peers_callback(%u)", npeers);
 	m_npeers = npeers;
 	timebase_reset();
 	m_cond.notify_one();
@@ -244,7 +242,7 @@ void jack_link::peers_callback ( const std::size_t npeers )
 void jack_link::tempo_callback ( const double tempo )
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::cerr << "jack_link::tempo_callback(" << tempo << ")" << std::endl;
+	jack_link_log("jack_link::tempo_callback(%g)", tempo);
 	m_tempo_req = tempo;
 	timebase_reset();
 	m_cond.notify_one();
@@ -260,7 +258,7 @@ void jack_link::playing_callback ( const bool playing )
 	}
 
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::cerr << "jack_link::playing_callback(" << playing << ")" << std::endl;
+	jack_link_log("jack_link::playing_callback(%d)", int(playing));
 	m_playing_req = true;
 	m_playing = playing;
 	transport_reset();
@@ -274,35 +272,31 @@ void jack_link::initialize (void)
 //	m_thread->detach();
 
 	jack_status_t status = JackFailure;
-	m_client = ::jack_client_open(jack_link::name(), JackNullOption, &status);
+	m_client = ::jack_client_open(m_name.c_str(), JackNullOption, &status);
 	if (m_client == nullptr) {
-		std::stringstream ss;
-		ss << jack_link::name() << ':' << ' ';
-		const std::string& s = ss.str();
-		std::cerr << s << "Could not initialize JACK client." << std::endl;
+		jack_link_log("Could not initialize JACK client.");
 		if (status & JackFailure)
-			std::cerr << s << "Overall operation failed." << std::endl;
+			jack_link_log("Overall operation failed.");
 		if (status & JackInvalidOption)
-			std::cerr << s << "Invalid or unsupported option." << std::endl;
+			jack_link_log("Invalid or unsupported option.");
 		if (status & JackNameNotUnique)
-			std::cerr << s << "Client name not unique." << std::endl;
+			jack_link_log("Client name not unique.");
 		if (status & JackServerStarted)
-			std::cerr << s << "Server is started." << std::endl;
+			jack_link_log("Server is started.");
 		if (status & JackServerFailed)
-			std::cerr << s << "Unable to connect to server." << std::endl;
+			jack_link_log("Unable to connect to server.");
 		if (status & JackServerError)
-			std::cerr << s << "Server communication error." << std::endl;
+			jack_link_log("Server communication error.");
 		if (status & JackNoSuchClient)
-			std::cerr << s << "Client does not exist." << std::endl;
+			jack_link_log("Client does not exist.");
 		if (status & JackLoadFailure)
-			std::cerr << s << "Unable to load internal client." << std::endl;
+			jack_link_log("Unable to load internal client.");
 		if (status & JackInitFailure)
-			std::cerr << s << "Unable to initialize client." << std::endl;
+			jack_link_log("Unable to initialize client.");
 		if (status & JackShmFailure)
-			std::cerr << s << "Unable to access shared memory." << std::endl;
+			jack_link_log("Unable to access shared memory.");
 		if (status & JackVersionError)
-			std::cerr << s << "Client protocol version mismatch." << std::endl;
-		std::cerr << std::endl;
+			jack_link_log("Client protocol version mismatch.");
 	//	std::terminate();
 		return;
 	};
@@ -404,8 +398,7 @@ void jack_link::worker_start (void)
 {
 	std::unique_lock<std::mutex> lock(m_mutex);
 
-	std::cout << jack_link::name() << " v" << jack_link::version() << std::endl; 
-	std::cout << jack_link::name() << ": started..." << std::endl; 
+	jack_link_log(m_name + ": started..."); 
 
 	m_running = true;
 
@@ -414,7 +407,7 @@ void jack_link::worker_start (void)
 		m_cond.wait_for(lock, std::chrono::milliseconds(100));
 	}
 
-	std::cout << jack_link::name() << ": terminated." << std::endl;
+	jack_link_log(m_name + ": terminated.");
 }
 
 
@@ -498,10 +491,57 @@ void jack_link::worker_stop (void)
 }
 
 
-void sig_handler ( int /*sig_no*/ )
+// daemon mode stuff...
+//
+
+#include <sys/param.h>
+
+
+static bool daemon_started = false;
+
+
+void daemon_fork (void)
 {
-	::fclose(stdin);
-	std::cerr << std::endl;
+	const int pid = ::fork();
+	if (pid > 0)
+		::exit(0);
+	else 
+	if (pid < 0)
+		::exit(1);
+}
+
+
+void daemon_start (void)
+{
+	daemon_fork();
+
+	::setsid();
+
+	daemon_fork();
+
+	for(int fd = 0; fd < NOFILE; ++fd)
+		::close(fd);
+	
+	::chdir("/tmp");
+	::umask(0);
+
+	daemon_started = true;
+}
+
+
+// main line stuff...
+//
+
+void sig_handler ( int sig_no )
+{
+	if (daemon_started) {
+		jack_link_log("Daemon is terminating with signal %d (SIG%s).", sig_no, ::sigabbrev_np(sig_no));
+		daemon_started = false;
+	//	::exit(sig_no);
+	} else {
+		::fclose(stdin);
+		std::cerr << std::endl;
+	}
 }
 
 
@@ -521,7 +561,35 @@ void trim_ws ( std::string& s )
 }
 
 
-int main ( int /*argc*/, char **/*argv*/ )
+void version (void)
+{
+	jack_link_log(JACK_LINK_NAME " v" JACK_LINK_VERSION " (Link v" ABLETON_LINK_VERSION ")");
+}
+
+
+void usage (void)
+{
+	std::cout << std::endl;
+	std::cout << "Usage: " << JACK_LINK_NAME << " [options]" << std::endl;
+	std::cout << std::endl;
+	std::cout << "Options:" << std::endl;
+	std::cout << std::endl;
+	std::cout << "  -n, --name <name>" << std::endl;
+	std::cout << "\tClient name (default = '" JACK_LINK_NAME "')" << std::endl;
+	std::cout << std::endl;
+	std::cout << "  -q, --quiet" << std::endl;
+	std::cout << "\tRun as quiet as a daemon (default = no)" << std::endl;
+	std::cout << std::endl;
+	std::cout << "  -d, --daemon" << std::endl;
+	std::cout << "\tRun in the background as a daemon (default = no)" << std::endl;
+	std::cout << std::endl;
+	std::cout << "  -h, --help" << std::endl;
+	std::cout << "\tShow this help about command line options" << std::endl;
+	std::cout << std::endl;
+}
+
+
+int main ( int argc, char **argv )
 {
 	::signal(SIGABRT, &sig_handler);
 	::signal(SIGHUP,  &sig_handler);
@@ -529,12 +597,69 @@ int main ( int /*argc*/, char **/*argv*/ )
 	::signal(SIGQUIT, &sig_handler);
 	::signal(SIGTERM, &sig_handler);
 
-	jack_link app;
+	std::string name = JACK_LINK_NAME;
+	bool quiet = false;
+	bool daemon = false;
 
+	for (int i = 1; i < argc; ++i) {
+		const std::string arg = argv[i];
+		if (!arg.compare("-n") || !arg.compare("--name")) {
+			if (++i < argc) {
+				name = argv[i];
+				if (name.empty()) {
+					std::cerr << "Invalid empty name" << std::endl;
+					return 2;
+				}
+			}
+		}
+		else
+		if (!arg.compare("-q") || !arg.compare("--quiet")) {
+			quiet = true;
+		}
+		else
+		if (!arg.compare("-d") || !arg.compare("--daemon")) {
+			daemon = true;
+		}
+		else
+		if (!arg.compare("-h") || !arg.compare("--help")) {
+			usage();
+			return 1;
+		}
+	}
+
+	jack_link_log logger;
+
+	if (daemon)
+		daemon_start();
+
+	if (daemon_started) {
+		logger.start(JACK_LINK_NAME, name);
+		jack_link_log("Daemon is starting with PID %u...", ::getpid());
+	}
+
+	if (!quiet)
+		version();
+
+	jack_link app(name);
+
+	// Enter daemon loop (background)...
+	//
+	if (daemon) {
+		while (daemon_started)
+			::sleep(1);
+		app.terminate();
+		jack_link_log("Daemon terminated.");
+		logger.stop();
+		return 0;
+	}
+
+	// Enter interactive loop (foreground)...
+	//
 	std::string line, arg;
 
 	while (!std::cin.eof() && app.active()) {
-		std::cout << app.name() << "> ";
+		if (!quiet)
+			std::cout << app.name() << "> ";
 		std::getline(std::cin, line);
 		trim_ws(line);
 		std::transform(
@@ -566,6 +691,7 @@ int main ( int /*argc*/, char **/*argv*/ )
 		}
 		else
 		if (!line.compare("status")) {
+			std::cout << "name: "    << app.name()    << std::endl;
 			std::cout << "npeers: "  << app.npeers()  << std::endl;
 			std::cout << "srate: "   << app.srate()   << std::endl;
 			std::cout << "tempo: "   << app.tempo()   << std::endl;
@@ -574,10 +700,13 @@ int main ( int /*argc*/, char **/*argv*/ )
 				(app.playing() ? "started" : "stopped") << std::endl;
 		}
 		else
+		if (!line.compare("version"))
+			version();
+		else
 		if (!line.compare("help")) {
 			std::cout << "help | start | stop";
-			std::cout << " | status | tempo [bpm]";
-			std::cout << " | quit | exit" << std::endl;
+			std::cout << " | tempo [bpm] | status";
+			std::cout << " | version | quit | exit" << std::endl;
 		}
 		else
 		if (!line.empty())
