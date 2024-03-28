@@ -17,7 +17,7 @@
    submodule on the main [jack_link](https://github.com/rncbc/jack_link)
    repository, so one needs to setup the working tree as follows:
 
-     git clone --recursive https://github.com/rncbc/jack_link
+     git clone --recurse-submodules https://github.com/rncbc/jack_link
      cd jack_link
      make
 
