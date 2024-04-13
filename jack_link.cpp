@@ -226,6 +226,9 @@ void jack_link::on_shutdown (void)
 
 	::fclose(stdin);
 	std::cerr << std::endl;
+
+//	std::terminate();
+	::raise(SIGTERM);
 }
 
 
@@ -298,6 +301,7 @@ void jack_link::initialize (void)
 		if (status & JackVersionError)
 			jack_link_log("Client protocol version mismatch.");
 	//	std::terminate();
+		::raise(SIGTERM);
 		return;
 	};
 
