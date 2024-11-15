@@ -204,6 +204,7 @@ void jack_link::timebase_callback (
 	pos->ticks_per_beat = ticks_per_beat;
 	pos->beats_per_minute = beats_per_minute;
 	pos->beat_type = beat_type;
+	pos->bar_start_tick = bar * beats_per_bar * ticks_per_beat;
 
 	if (new_pos) ++m_timebase;
 }
