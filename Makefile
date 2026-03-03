@@ -24,7 +24,7 @@ ifneq ($(LINK_VERSION),)
 CCFLAGS += -D_LINK_VERSION="$(LINK_VERSION)"
 endif
 
-CCFLAGS += -g -O2 -std=c++11
+CCFLAGS += -g -O2 -std=c++17
 CCFLAGS += -Wno-multichar
 
 #https://stackoverflow.com/questions/714100/os-detecting-makefile
