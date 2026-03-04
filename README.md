@@ -7,7 +7,7 @@
 
 ## Prerequisites
 
-   **jack_link** software prerequisites for building are a C++11 compiler
+   **jack_link** software prerequisites for building are a C++17 compiler
    (_g++_) and the [JACK](https://jackaudio.org) client C libraries and
    headers (_libjack-devel_).
 
