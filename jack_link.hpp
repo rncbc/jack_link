@@ -33,7 +33,7 @@
 #if defined(_VERSION)
 #define JACK_LINK_VERSION    JACK_LINK_QUOTE2(_VERSION)
 #else
-#define JACK_LINK_VERSION    JACK_LINK_QUOTE1(0.2.6)
+#define JACK_LINK_VERSION    JACK_LINK_QUOTE1(0.2.7)
 #endif
 
 #if defined(_LINK_VERSION)
